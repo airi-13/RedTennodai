@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-ink: #1f2320;
+  --color-ink-soft: #5c6560;
+  --color-border: #dfe3df;
+  --color-accent: #2f6f4e;
+  --color-accent-soft: #e6f0ea;
+
+  --color-present: #2f6f4e;
+  --color-absent: #b0483f;
+  --color-late: #c08a2e;
+  --color-makeup: #3d6ea5;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP",
+    system-ui, sans-serif;
+}
