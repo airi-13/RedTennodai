@@ -1,11 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createStudent, updateStudentStatus, type NewStudent } from "@/lib/data/students";
+import { createStudent, createStudentWithLogin, updateStudentStatus, type NewStudent } from "@/lib/data/students";
 import { addSchedule, deleteSchedule } from "@/lib/data/schedules";
 
 export async function createStudentAction(input: NewStudent) {
   const student = await createStudent(input);
+  revalidatePath("/students");
+  return student;
+}
+
+export async function createStudentWithLoginAction(
+  input: NewStudent & { loginId: string; password: string }
+) {
+  const student = await createStudentWithLogin(input);
   revalidatePath("/students");
   return student;
 }

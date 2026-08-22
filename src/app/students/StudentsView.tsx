@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import type { Period, Student, StudentSchedule, Subject } from "@/lib/types";
 import {
   addScheduleAction,
-  createStudentAction,
+  createStudentWithLoginAction,
   removeScheduleAction,
   setStudentActiveAction,
 } from "./actions";
@@ -91,69 +91,117 @@ function AddStudentForm() {
   const [name, setName] = useState("");
   const [nameKana, setNameKana] = useState("");
   const [schoolLevel, setSchoolLevel] = useState("小学生");
+  const [schoolName, setSchoolName] = useState("");
   const [grade, setGrade] = useState(1);
+  const [loginId, setLoginId] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   function submit() {
-    if (!name.trim()) return;
+    if (!name.trim() || !loginId.trim() || !password.trim()) return;
+    setError(null);
     startTransition(async () => {
-      await createStudentAction({
-        name: name.trim(),
-        name_kana: nameKana.trim() || null,
-        school_level: schoolLevel,
-        grade,
-      });
-      setName("");
-      setNameKana("");
+      try {
+        await createStudentWithLoginAction({
+          name: name.trim(),
+          name_kana: nameKana.trim() || null,
+          school_level: schoolLevel,
+          school_name: schoolName.trim() || null,
+          grade,
+          loginId: loginId.trim(),
+          password,
+        });
+        setName("");
+        setNameKana("");
+        setSchoolName("");
+        setLoginId("");
+        setPassword("");
+      } catch (e: any) {
+        setError(e?.message ?? "登録に失敗しました");
+      }
     });
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <Field label="氏名">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-          placeholder="山田 太郎"
-        />
-      </Field>
-      <Field label="フリガナ">
-        <input
-          value={nameKana}
-          onChange={(e) => setNameKana(e.target.value)}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-          placeholder="ヤマダ タロウ"
-        />
-      </Field>
-      <Field label="区分">
-        <select
-          value={schoolLevel}
-          onChange={(e) => setSchoolLevel(e.target.value)}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+    <div className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="氏名">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+            placeholder="山田 太郎"
+          />
+        </Field>
+        <Field label="フリガナ">
+          <input
+            value={nameKana}
+            onChange={(e) => setNameKana(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+            placeholder="ヤマダ タロウ"
+          />
+        </Field>
+        <Field label="区分">
+          <select
+            value={schoolLevel}
+            onChange={(e) => setSchoolLevel(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          >
+            <option value="小学生">小学生</option>
+            <option value="中学生">中学生</option>
+            <option value="高校生">高校生</option>
+          </select>
+        </Field>
+        <Field label="学年">
+          <input
+            type="number"
+            min={1}
+            max={6}
+            value={grade}
+            onChange={(e) => setGrade(Number(e.target.value))}
+            className="w-16 rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          />
+        </Field>
+        <Field label="学校名">
+          <input
+            value={schoolName}
+            onChange={(e) => setSchoolName(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+            placeholder="○○小学校"
+          />
+        </Field>
+      </div>
+      <div className="flex flex-wrap items-end gap-2 border-t border-[var(--color-border)] pt-3">
+        <Field label="生徒ID(ログイン用)">
+          <input
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+            placeholder="例: taro01"
+          />
+        </Field>
+        <Field label="パスワード(ログイン用)">
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+            placeholder="生徒に伝えるパスワード"
+          />
+        </Field>
+        <button
+          onClick={submit}
+          disabled={isPending || !name.trim() || !loginId.trim() || !password.trim()}
+          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          style={{ background: "var(--color-accent)" }}
         >
-          <option value="小学生">小学生</option>
-          <option value="中学生">中学生</option>
-          <option value="高校生">高校生</option>
-        </select>
-      </Field>
-      <Field label="学年">
-        <input
-          type="number"
-          min={1}
-          max={6}
-          value={grade}
-          onChange={(e) => setGrade(Number(e.target.value))}
-          className="w-16 rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-      </Field>
-      <button
-        onClick={submit}
-        disabled={isPending || !name.trim()}
-        className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-        style={{ background: "var(--color-accent)" }}
-      >
-        追加
-      </button>
+          追加
+        </button>
+      </div>
+      {error && (
+        <p className="text-xs" style={{ color: "var(--color-absent)" }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -194,6 +242,7 @@ function StudentRow({
             {student.school_level}
             {student.grade ? ` ${student.grade}年` : ""}
             {eightyMin ? "・80分授業" : "・40分授業"}
+            {student.login_id && `・ID: ${student.login_id}`}
           </span>
           {student.status === "inactive" && (
             <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">

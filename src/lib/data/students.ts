@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { loginIdToDummyEmail } from "@/lib/student-login";
 import type { Student } from "@/lib/types";
 
 export async function getStudents(includeInactive = false): Promise<Student[]> {
@@ -25,6 +26,7 @@ export type NewStudent = {
   name: string;
   name_kana?: string | null;
   school_level?: string | null;
+  school_name?: string | null;
   grade?: number | null;
   enrolled_on?: string | null;
   note?: string | null;
@@ -37,6 +39,37 @@ export async function createStudent(input: NewStudent): Promise<Student> {
     .select()
     .single();
   if (error) throw error;
+  return data;
+}
+
+// 生徒の登録と同時にSupabase Authのログインアカウントも発行する。
+// login_idは生徒が入力する短いID、passwordは管理者が決めて生徒に伝える。
+export async function createStudentWithLogin(
+  input: NewStudent & { loginId: string; password: string }
+): Promise<Student> {
+  const { loginId, password, ...studentInput } = input;
+
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email: loginIdToDummyEmail(loginId),
+    password,
+    email_confirm: true,
+  });
+  if (authError) throw authError;
+
+  const { data, error } = await supabase
+    .from("students")
+    .insert({
+      ...studentInput,
+      login_id: loginId,
+      auth_user_id: authData.user.id,
+    })
+    .select()
+    .single();
+  if (error) {
+    // 生徒行の作成に失敗した場合、孤立したAuthユーザーを残さないよう削除しておく
+    await supabase.auth.admin.deleteUser(authData.user.id);
+    throw error;
+  }
   return data;
 }
 

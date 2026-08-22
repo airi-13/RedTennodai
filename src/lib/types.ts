@@ -29,10 +29,13 @@ export type Student = {
   name: string;
   name_kana: string | null;
   school_level: string | null;
+  school_name: string | null;
   grade: number | null;
   status: StudentStatus;
   enrolled_on: string | null;
   note: string | null;
+  login_id: string | null;
+  auth_user_id: string | null;
 };
 
 export type StudentSchedule = {
@@ -68,4 +71,26 @@ export type AttendanceSlot = {
   attendanceRecordId: number | null;
   status: AttendanceStatus | null;
   note: string | null;
+};
+
+export type RequestType = "absence" | "makeup";
+export type RequestStatus = "pending" | "approved" | "rejected";
+
+export type AttendanceRequest = {
+  id: number;
+  student_id: number;
+  request_type: RequestType;
+  target_date: string;
+  target_period_id: number | null;
+  reason: string | null;
+  status: RequestStatus;
+  makeup_date: string | null;
+  makeup_period_id: number | null;
+  requested_at: string;
+  processed_at: string | null;
+};
+
+// 画面表示用: 申請1件に生徒名を付加したもの(管理者の一覧画面用)
+export type AttendanceRequestWithStudent = AttendanceRequest & {
+  studentName: string;
 };

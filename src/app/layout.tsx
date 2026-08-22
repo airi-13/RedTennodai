@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import { HeaderNav } from "./HeaderNav";
 
 export const metadata: Metadata = {
   title: "RED教室 出欠管理",
@@ -21,20 +21,7 @@ export default function RootLayout({
               <span className="font-semibold tracking-tight text-[var(--color-ink)]">
                 RED教室
               </span>
-              <nav className="flex gap-4 text-sm">
-                <Link
-                  href="/attendance"
-                  className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
-                >
-                  出欠入力
-                </Link>
-                <Link
-                  href="/students"
-                  className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
-                >
-                  生徒管理
-                </Link>
-              </nav>
+              <HeaderNav />
             </div>
           </header>
           <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
