@@ -23,6 +23,16 @@ RED教室(個人経営の学習塾、生徒数は小学生〜高校生で最大5
 
 管理画面パスワード等の環境変数は`.env.local.example`(必要なキーの一覧)を参照し、実際の値はRenderのEnvironmentタブ、またはSupabaseダッシュボード(Settings > API Keys)で確認する。このファイルには機密情報を書かない方針。
 
+## アクセス権限の引き継ぎ方
+
+トークンやAPIキーを直接受け渡すのではなく、各サービスで新しい担当者を共同編集者として招待すること。
+
+- **GitHub**: リポジトリのSettings > Collaborators and teams から招待
+- **Render**: ワークスペースのSettings(People)から招待。`kakomon-app`も見える点に注意
+- **Supabase**: 組織のTeam設定から招待(Developer権限などを付与すれば、本人のダッシュボードからservice role keyを含む必要な鍵を取得できる)
+
+アプリ自体の管理画面パスワード(`ADMIN_PASSWORD`)は上記と別で、引き継ぎ時にRenderのEnvironmentタブから新しい値に変更し、チャットやドキュメントに残さず直接口頭・別経路で伝えること。
+
 ## 技術スタック・設計上の主な決定事項
 
 - Next.js(App Router, TypeScript, Tailwind v4) / Supabase(Postgres, Auth) / Render(ホスティング) / GitHub
