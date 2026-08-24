@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { loginIdToDummyEmail } from "@/lib/student-login";
+import { findOrCreateSchoolByName } from "@/lib/data/schools";
 import type { Student } from "@/lib/types";
 
 export async function getStudents(includeInactive = false): Promise<Student[]> {
@@ -25,6 +26,7 @@ export async function getStudent(id: number): Promise<Student | null> {
 export type NewStudent = {
   name: string;
   name_kana?: string | null;
+  gender?: string | null;
   school_level?: string | null;
   school_name?: string | null;
   grade?: number | null;
@@ -56,10 +58,15 @@ export async function createStudentWithLogin(
   });
   if (authError) throw authError;
 
+  const school_id = studentInput.school_name
+    ? (await findOrCreateSchoolByName(studentInput.school_name)).id
+    : null;
+
   const { data, error } = await supabase
     .from("students")
     .insert({
       ...studentInput,
+      school_id,
       login_id: loginId,
       auth_user_id: authData.user.id,
     })

@@ -9,6 +9,7 @@ import {
   setStudentActiveAction,
 } from "./actions";
 import { isValidEightyMinutePair } from "@/lib/schedule-rules";
+import { BulkImport } from "./BulkImport";
 
 const DOW_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -60,6 +61,7 @@ export function StudentsView({
         </label>
       </div>
 
+      <BulkImport />
       <AddStudentForm />
 
       <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
