@@ -29,7 +29,7 @@ jobs:
           python-version: '3.11'
       - name: Install Google API client
         run: pip install google-api-python-client google-auth
-            - name: Upload to Google Drive
+      - name: Upload to Google Drive
         env:
           GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
           GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
