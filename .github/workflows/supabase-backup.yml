@@ -19,13 +19,13 @@ jobs:
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-client-17
 
-      - name: Dump database
+            - name: Dump database
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           mkdir -p backup_output
           FILENAME="red-tennodai-backup-$(date +%Y%m%d).sql"
-          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges > "backup_output/$FILENAME"
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges > "backup_output/$FILENAME"
           echo "BACKUP_FILE=backup_output/$FILENAME" >> "$GITHUB_ENV"
 
       - name: Set up Python
