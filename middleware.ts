@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { sha256Hex } from "@/lib/hash";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 
-const ADMIN_PATHS = ["/attendance", "/students", "/requests"];
+const ADMIN_PATHS = ["/attendance", "/students", "/requests", "/admin-calendar", "/materials"];
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -68,6 +68,8 @@ export const config = {
     "/attendance/:path*",
     "/students/:path*",
     "/requests/:path*",
+    "/admin-calendar/:path*",
+    "/materials/:path*",
     "/my/:path*",
   ],
 };

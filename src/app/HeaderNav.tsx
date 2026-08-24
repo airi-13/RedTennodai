@@ -34,6 +34,18 @@ export function HeaderNav() {
       >
         申請
       </Link>
+      <Link
+        href="/admin-calendar"
+        className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+      >
+        カレンダー管理
+      </Link>
+      <Link
+        href="/materials"
+        className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+      >
+        教材・料金
+      </Link>
     </nav>
   );
 }

@@ -1,19 +1,30 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createAnonClient } from "@/lib/supabase-anon";
-import { studentLogoutAction } from "@/app/login/actions";
+import { buildStudentCalendar } from "@/lib/data/calendar";
 
 export const dynamic = "force-dynamic";
 
-const DOW_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
-const STATUS_LABEL: Record<string, string> = {
-  present: "出席",
-  absent: "欠席",
-  late: "遅刻",
-  makeup: "振替",
+const ITEM_STYLE: Record<string, { bg: string; label: string }> = {
+  lesson: { bg: "var(--color-accent-soft)", label: "" },
+  announcement: { bg: "#FFF3CD", label: "お知らせ" },
+  school_event: { bg: "#E3EEFB", label: "学校行事" },
 };
 
-export default async function MyPage() {
+function monthLabel(year: number, month: number) {
+  return `${year}年${month}月`;
+}
+
+export default async function MyCalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ y?: string; m?: string }>;
+}) {
+  const params = await searchParams;
+  const now = new Date();
+  const year = params.y ? Number(params.y) : now.getFullYear();
+  const month = params.m ? Number(params.m) : now.getMonth() + 1;
+
   const supabase = await createAnonClient();
   const {
     data: { user },
@@ -22,113 +33,105 @@ export default async function MyPage() {
 
   const { data: student } = await supabase
     .from("students")
-    .select("id, name")
+    .select("id, name, school_id")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
   if (!student) {
-    return (
-      <div className="space-y-3">
-        <p>生徒情報が見つかりませんでした。教室までお問い合わせください。</p>
-        <form action={studentLogoutAction}>
-          <button className="text-sm underline">ログアウト</button>
-        </form>
-      </div>
-    );
+    return <p>生徒情報が見つかりませんでした。教室までお問い合わせください。</p>;
   }
 
-  const [{ data: schedules }, { data: records }] = await Promise.all([
-    supabase
-      .from("student_schedules")
-      .select("day_of_week, periods(name, sort_order), subjects(name)")
-      .eq("student_id", student.id)
-      .order("day_of_week"),
-    supabase
-      .from("attendance_records")
-      .select("date, status, periods(name), subjects(name)")
-      .eq("student_id", student.id)
-      .order("date", { ascending: false })
-      .limit(10),
-  ]);
+  const days = await buildStudentCalendar({
+    studentId: student.id,
+    schoolId: student.school_id,
+    year,
+    month,
+  });
 
-  const scheduleByDay = new Map<number, any[]>();
-  for (const s of schedules ?? []) {
-    const list = scheduleByDay.get(s.day_of_week) ?? [];
-    list.push(s);
-    scheduleByDay.set(s.day_of_week, list);
-  }
-  for (const list of scheduleByDay.values()) {
-    list.sort((a, b) => (a.periods?.sort_order ?? 0) - (b.periods?.sort_order ?? 0));
-  }
+  const firstWeekday = new Date(year, month - 1, 1).getDay();
+  const leadingBlanks = Array.from({ length: firstWeekday });
+
+  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
+  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{student.name}さんのマイページ</h1>
-        <form action={studentLogoutAction}>
-          <button className="text-xs text-[var(--color-ink-soft)] underline">
-            ログアウト
-          </button>
-        </form>
+        <h1 className="text-lg font-semibold">{student.name}さんのカレンダー</h1>
+        <div className="flex gap-3 text-sm">
+          <Link href="/my/history" className="text-[var(--color-ink-soft)] underline">
+            出欠履歴
+          </Link>
+          <Link href="/my/textbooks" className="text-[var(--color-ink-soft)] underline">
+            使用テキスト
+          </Link>
+          <Link href="/my/pricing" className="text-[var(--color-ink-soft)] underline">
+            費用シミュレーション
+          </Link>
+          <Link
+            href="/my/request"
+            className="rounded-md px-3 py-1 font-medium text-white"
+            style={{ background: "var(--color-accent)" }}
+          >
+            欠席・振替を申請
+          </Link>
+        </div>
       </div>
 
-      <Link
-        href="/my/request"
-        className="inline-block rounded-md px-4 py-2 text-sm font-medium text-white"
-        style={{ background: "var(--color-accent)" }}
-      >
-        欠席・振替を申請する
-      </Link>
+      <div className="flex items-center justify-center gap-4">
+        <Link
+          href={`/my?y=${prev.y}&m=${prev.m}`}
+          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+        >
+          ← 前月
+        </Link>
+        <span className="font-medium">{monthLabel(year, month)}</span>
+        <Link
+          href={`/my?y=${next.y}&m=${next.m}`}
+          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+        >
+          翌月 →
+        </Link>
+      </div>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium text-[var(--color-ink-soft)]">
-          毎週のスケジュール
-        </h2>
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)]">
-          {[1, 2, 3, 4, 5, 6, 0].map((dow) => {
-            const rows = scheduleByDay.get(dow) ?? [];
-            if (rows.length === 0) return null;
-            return (
-              <div key={dow} className="flex gap-3 px-4 py-2 text-sm">
-                <span className="w-6 font-medium">{DOW_LABEL[dow]}</span>
-                <span className="text-[var(--color-ink-soft)]">
-                  {rows
-                    .map((r) => `${r.periods?.name ?? ""} ${r.subjects?.name ?? ""}`)
-                    .join(" / ")}
-                </span>
-              </div>
-            );
-          })}
-          {(schedules ?? []).length === 0 && (
-            <p className="px-4 py-3 text-sm text-[var(--color-ink-soft)]">
-              まだ登録されていません
-            </p>
-          )}
-        </div>
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium text-[var(--color-ink-soft)]">
-          最近の出欠(直近10件)
-        </h2>
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)]">
-          {(records ?? []).map((r: any, i: number) => (
-            <div key={i} className="flex justify-between px-4 py-2 text-sm">
-              <span>
-                {r.date} {r.periods?.name} {r.subjects?.name}
-              </span>
-              <span className="text-[var(--color-ink-soft)]">
-                {STATUS_LABEL[r.status] ?? r.status}
-              </span>
+      <div className="grid grid-cols-7 gap-1 text-center text-xs text-[var(--color-ink-soft)]">
+        {["日", "月", "火", "水", "木", "金", "土"].map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+        {leadingBlanks.map((_, i) => (
+          <div key={`blank-${i}`} />
+        ))}
+        {days.map((day) => (
+          <div
+            key={day.date}
+            className="min-h-[72px] rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 text-left"
+            style={day.status === "closed" ? { background: "var(--color-bg)" } : undefined}
+          >
+            <div className="text-[10px] text-[var(--color-ink-soft)]">
+              {Number(day.date.slice(-2))}
+              {day.status === "closed" && <span className="ml-1">休講</span>}
             </div>
-          ))}
-          {(records ?? []).length === 0 && (
-            <p className="px-4 py-3 text-sm text-[var(--color-ink-soft)]">
-              まだ記録がありません
-            </p>
-          )}
-        </div>
-      </section>
+            <div className="mt-0.5 space-y-0.5">
+              {day.items.map((item, i) => (
+                <div
+                  key={i}
+                  className="truncate rounded px-1 text-[10px]"
+                  style={{ background: ITEM_STYLE[item.type]?.bg ?? "#eee" }}
+                  title={
+                    item.type === "lesson"
+                      ? `${item.periodLabel} ${item.subject}`
+                      : item.title
+                  }
+                >
+                  {item.type === "lesson"
+                    ? `${item.periodLabel} ${item.subject}`
+                    : item.title}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
