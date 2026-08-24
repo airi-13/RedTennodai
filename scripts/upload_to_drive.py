@@ -1,19 +1,34 @@
 """
-scripts/upload_to_drive.py
+scripts/upload_to_drive.py (OAuth版)
 使い方: python upload_to_drive.py <アップロードするファイルパス>
 環境変数:
-  GDRIVE_SERVICE_ACCOUNT_JSON  … Googleサービスアカウントの鍵(JSON文字列そのもの)
-  GDRIVE_FOLDER_ID             … アップロード先のGoogle DriveフォルダID
+  GDRIVE_CLIENT_ID       … OAuthクライアントID
+  GDRIVE_CLIENT_SECRET   … OAuthクライアントシークレット
+  GDRIVE_REFRESH_TOKEN   … OAuth Playgroundで取得したリフレッシュトークン
+  GDRIVE_FOLDER_ID       … アップロード先のGoogle DriveフォルダID
 """
-import json
 import os
 import sys
 
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 KEEP_GENERATIONS = 8
+
+
+def get_credentials() -> Credentials:
+    creds = Credentials(
+        token=None,
+        refresh_token=os.environ["GDRIVE_REFRESH_TOKEN"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.environ["GDRIVE_CLIENT_ID"],
+        client_secret=os.environ["GDRIVE_CLIENT_SECRET"],
+        scopes=["https://www.googleapis.com/auth/drive.file"],
+    )
+    creds.refresh(Request())
+    return creds
 
 
 def main():
@@ -23,11 +38,8 @@ def main():
 
     file_path = sys.argv[1]
     folder_id = os.environ["GDRIVE_FOLDER_ID"]
-    sa_info = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])
 
-    creds = service_account.Credentials.from_service_account_info(
-        sa_info, scopes=["https://www.googleapis.com/auth/drive"]
-    )
+    creds = get_credentials()
     drive = build("drive", "v3", credentials=creds)
 
     file_metadata = {
