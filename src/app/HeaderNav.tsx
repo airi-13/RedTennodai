@@ -8,9 +8,11 @@ const STUDENT_SIDE = ["/my", "/login"];
 export function HeaderNav() {
   const pathname = usePathname();
   const isStudentSide = STUDENT_SIDE.some((p) => pathname.startsWith(p));
+  const isLanding = pathname === "/";
 
-  if (isStudentSide) {
+  if (isStudentSide || isLanding) {
     // 生徒側は/myページ自体にログアウトボタンがあるため、ここでは何も出さない
+    // トップページ(未ログイン)でも管理者ナビは出さない
     return null;
   }
 
