@@ -11,6 +11,8 @@ export async function setAttendanceStatus(input: {
   periodId: number;
   subjectId: number;
   status: AttendanceStatus;
+  makeupDate?: string | null;
+  makeupPeriodId?: number | null;
 }) {
   await upsertAttendance({
     student_id: input.studentId,
@@ -18,6 +20,8 @@ export async function setAttendanceStatus(input: {
     period_id: input.periodId,
     subject_id: input.subjectId,
     status: input.status,
+    makeup_date: input.status === "makeup" ? input.makeupDate ?? null : null,
+    makeup_period_id: input.status === "makeup" ? input.makeupPeriodId ?? null : null,
   });
   revalidatePath("/attendance");
 }

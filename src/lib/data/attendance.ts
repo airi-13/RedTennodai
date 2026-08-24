@@ -9,26 +9,39 @@ export function dayOfWeekFromDateString(date: string): number {
   return new Date(y, m - 1, d).getDay();
 }
 
+async function studentNameMap(studentIds: number[]): Promise<Map<number, string>> {
+  if (studentIds.length === 0) return new Map();
+  const { data, error } = await supabase
+    .from("students")
+    .select("id, name")
+    .in("id", studentIds);
+  if (error) throw error;
+  return new Map((data ?? []).map((s) => [s.id, s.name]));
+}
+
 // 指定日の出欠一覧を取得する。
 // 1. student_schedulesからその曜日の「予定」を取得
 // 2. attendance_recordsのその日の「実績」で上書き
 // 3. 予定にない実績(振替追加分)は追加で表示
+// 4. 他の日から振替先としてこの日を指定されている記録も「追加されたコマ」として表示
 export async function getAttendanceSlotsForDate(
   date: string
 ): Promise<AttendanceSlot[]> {
   const dayOfWeek = dayOfWeekFromDateString(date);
 
-  const [scheduleRes, recordRes] = await Promise.all([
+  const [scheduleRes, recordRes, transferInRes] = await Promise.all([
     supabase
       .from("student_schedules")
       .select("id, student_id, period_id, subject_id, students!inner(name, status)")
       .eq("day_of_week", dayOfWeek)
       .eq("students.status", "active"),
     supabase.from("attendance_records").select("*").eq("date", date),
+    supabase.from("attendance_records").select("*").eq("makeup_date", date),
   ]);
 
   if (scheduleRes.error) throw scheduleRes.error;
   if (recordRes.error) throw recordRes.error;
+  if (transferInRes.error) throw transferInRes.error;
 
   const recordMap = new Map(
     (recordRes.data ?? []).map((r) => [`${r.student_id}:${r.period_id}`, r])
@@ -47,31 +60,49 @@ export async function getAttendanceSlotsForDate(
       attendanceRecordId: record ? record.id : null,
       status: record ? (record.status as AttendanceStatus) : null,
       note: record ? record.note : null,
+      makeupDate: record?.makeup_date ?? null,
+      makeupPeriodId: record?.makeup_period_id ?? null,
     } satisfies AttendanceSlot;
   });
 
-  // 定期スケジュールに対応行がない出欠記録(振替追加分など)
+  // 定期スケジュールに対応行がない出欠記録(手動追加分など)
   const extraRecords = [...recordMap.values()];
-  if (extraRecords.length > 0) {
-    const extraStudentIds = extraRecords.map((r) => r.student_id);
-    const { data: extraStudents, error } = await supabase
-      .from("students")
-      .select("id, name")
-      .in("id", extraStudentIds);
-    if (error) throw error;
-    const nameMap = new Map((extraStudents ?? []).map((s) => [s.id, s.name]));
-    for (const r of extraRecords) {
-      slots.push({
-        scheduleId: null,
-        studentId: r.student_id,
-        studentName: nameMap.get(r.student_id) ?? `ID:${r.student_id}`,
-        periodId: r.period_id,
-        subjectId: r.subject_id,
-        attendanceRecordId: r.id,
-        status: r.status as AttendanceStatus,
-        note: r.note,
-      });
-    }
+  const extraNames = await studentNameMap(extraRecords.map((r) => r.student_id));
+  for (const r of extraRecords) {
+    slots.push({
+      scheduleId: null,
+      studentId: r.student_id,
+      studentName: extraNames.get(r.student_id) ?? `ID:${r.student_id}`,
+      periodId: r.period_id,
+      subjectId: r.subject_id,
+      attendanceRecordId: r.id,
+      status: r.status as AttendanceStatus,
+      note: r.note,
+      makeupDate: r.makeup_date,
+      makeupPeriodId: r.makeup_period_id,
+    });
+  }
+
+  // 他の日からの振替先としてこの日を指定されている記録(表示専用の追加コマ)
+  const transferRecords = transferInRes.data ?? [];
+  const transferNames = await studentNameMap(transferRecords.map((r) => r.student_id));
+  for (const r of transferRecords) {
+    if (!r.makeup_period_id) continue;
+    slots.push({
+      scheduleId: null,
+      studentId: r.student_id,
+      studentName: transferNames.get(r.student_id) ?? `ID:${r.student_id}`,
+      periodId: r.makeup_period_id,
+      subjectId: r.subject_id,
+      attendanceRecordId: r.id,
+      status: r.status as AttendanceStatus,
+      note: r.note,
+      makeupDate: r.makeup_date,
+      makeupPeriodId: r.makeup_period_id,
+      isTransferAddition: true,
+      transferFromDate: r.date,
+      transferFromPeriodId: r.period_id,
+    });
   }
 
   return slots;
@@ -84,6 +115,8 @@ export async function upsertAttendance(input: {
   subject_id: number;
   status: AttendanceStatus;
   note?: string | null;
+  makeup_date?: string | null;
+  makeup_period_id?: number | null;
 }) {
   const { error } = await supabase
     .from("attendance_records")

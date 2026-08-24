@@ -71,6 +71,13 @@ export type AttendanceSlot = {
   attendanceRecordId: number | null;
   status: AttendanceStatus | null;
   note: string | null;
+  // status='makeup'の場合の振替先
+  makeupDate: string | null;
+  makeupPeriodId: number | null;
+  // true: このスロット自体が「他の日の振替先として追加された」もの(表示専用)
+  isTransferAddition?: boolean;
+  transferFromDate?: string | null;
+  transferFromPeriodId?: number | null;
 };
 
 export type RequestType = "absence" | "makeup";

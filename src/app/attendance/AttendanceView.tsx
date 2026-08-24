@@ -88,6 +88,7 @@ export function AttendanceView({
         <PeriodCard
           key={period.id}
           period={period}
+          periods={periods}
           subjects={subjects}
           date={date}
           slots={slotsByPeriod.get(period.id) ?? []}
@@ -99,11 +100,13 @@ export function AttendanceView({
 
 function PeriodCard({
   period,
+  periods,
   subjects,
   date,
   slots,
 }: {
   period: Period;
+  periods: Period[];
   subjects: Subject[];
   date: string;
   slots: AttendanceSlot[];
@@ -124,37 +127,76 @@ function PeriodCard({
         </p>
       ) : (
         <ul className="divide-y divide-[var(--color-border)]">
-          {slots.map((slot) => (
-            <StudentRow
-              key={`${slot.studentId}-${slot.periodId}`}
-              slot={slot}
-              subjects={subjects}
-              date={date}
-              periodId={period.id}
-            />
-          ))}
+          {slots.map((slot) =>
+            slot.isTransferAddition ? (
+              <TransferAdditionRow
+                key={`transfer-${slot.attendanceRecordId}`}
+                slot={slot}
+                periods={periods}
+              />
+            ) : (
+              <StudentRow
+                key={`${slot.studentId}-${slot.periodId}`}
+                slot={slot}
+                subjects={subjects}
+                periods={periods}
+                date={date}
+                periodId={period.id}
+              />
+            )
+          )}
         </ul>
       )}
     </section>
   );
 }
 
+// 他の日の振替先としてこのコマに追加された生徒。表示専用(元の記録側で編集する)。
+function TransferAdditionRow({ slot, periods }: { slot: AttendanceSlot; periods: Period[] }) {
+  const fromPeriodName = periods.find((p) => p.id === slot.transferFromPeriodId)?.name ?? "";
+  return (
+    <li className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ background: "#EAF1FB" }}>
+      <span className="min-w-[7rem] font-medium">{slot.studentName}</span>
+      <span
+        className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+        style={{ background: "var(--color-makeup)" }}
+      >
+        振替追加
+      </span>
+      <span className="text-xs text-[var(--color-ink-soft)]">
+        元: {slot.transferFromDate} {fromPeriodName}
+      </span>
+    </li>
+  );
+}
+
 function StudentRow({
   slot,
   subjects,
+  periods,
   date,
   periodId,
 }: {
   slot: AttendanceSlot;
   subjects: Subject[];
+  periods: Period[];
   date: string;
   periodId: number;
 }) {
   const [isPending, startTransition] = useTransition();
   const [subjectId, setSubjectId] = useState(slot.subjectId);
   const [status, setStatus] = useState<AttendanceStatus | null>(slot.status);
+  const [makeupDate, setMakeupDate] = useState(slot.makeupDate ?? "");
+  const [makeupPeriodId, setMakeupPeriodId] = useState<number | "">(
+    slot.makeupPeriodId ?? ""
+  );
 
-  function apply(newStatus: AttendanceStatus, newSubjectId: number) {
+  function apply(
+    newStatus: AttendanceStatus,
+    newSubjectId: number,
+    newMakeupDate: string,
+    newMakeupPeriodId: number | ""
+  ) {
     setStatus(newStatus);
     startTransition(async () => {
       await setAttendanceStatus({
@@ -163,60 +205,101 @@ function StudentRow({
         periodId,
         subjectId: newSubjectId,
         status: newStatus,
+        makeupDate: newStatus === "makeup" ? newMakeupDate || null : null,
+        makeupPeriodId:
+          newStatus === "makeup" && newMakeupPeriodId !== "" ? newMakeupPeriodId : null,
       });
     });
   }
 
   return (
-    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
-      <span className="min-w-[7rem] font-medium">{slot.studentName}</span>
+    <li className="flex flex-col gap-2 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="min-w-[7rem] font-medium">{slot.studentName}</span>
 
-      <select
-        value={subjectId}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          setSubjectId(next);
-          if (status) apply(status, next);
-        }}
-        className="rounded-md border border-[var(--color-border)] bg-transparent px-2 py-1 text-sm"
-      >
-        {subjects.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
-      </select>
+        <select
+          value={subjectId}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            setSubjectId(next);
+            if (status) apply(status, next, makeupDate, makeupPeriodId);
+          }}
+          className="rounded-md border border-[var(--color-border)] bg-transparent px-2 py-1 text-sm"
+        >
+          {subjects.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
 
-      <div className="flex gap-1">
-        {STATUS_OPTIONS.map((opt) => {
-          const active = status === opt.value;
-          return (
-            <button
-              key={opt.value}
-              disabled={isPending}
-              onClick={() => apply(opt.value, subjectId)}
-              className="rounded-full border px-3 py-1 text-xs font-medium transition disabled:opacity-50"
-              style={
-                active
-                  ? {
-                      background: `var(--color-${opt.value})`,
-                      borderColor: `var(--color-${opt.value})`,
-                      color: "white",
-                    }
-                  : {
-                      borderColor: "var(--color-border)",
-                      color: "var(--color-ink-soft)",
-                    }
-              }
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+        <div className="flex gap-1">
+          {STATUS_OPTIONS.map((opt) => {
+            const active = status === opt.value;
+            return (
+              <button
+                key={opt.value}
+                disabled={isPending}
+                onClick={() => apply(opt.value, subjectId, makeupDate, makeupPeriodId)}
+                className="rounded-full border px-3 py-1 text-xs font-medium transition disabled:opacity-50"
+                style={
+                  active
+                    ? {
+                        background: `var(--color-${opt.value})`,
+                        borderColor: `var(--color-${opt.value})`,
+                        color: "white",
+                      }
+                    : {
+                        borderColor: "var(--color-border)",
+                        color: "var(--color-ink-soft)",
+                      }
+                }
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {!status && (
+          <span className="text-xs text-[var(--color-ink-soft)]">未確定</span>
+        )}
       </div>
 
-      {!status && (
-        <span className="text-xs text-[var(--color-ink-soft)]">未確定</span>
+      {status === "makeup" && (
+        <div className="ml-[7rem] flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-xs text-[var(--color-ink-soft)]">振替先:</span>
+          <input
+            type="date"
+            value={makeupDate}
+            onChange={(e) => {
+              setMakeupDate(e.target.value);
+              apply("makeup", subjectId, e.target.value, makeupPeriodId);
+            }}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-xs"
+          />
+          <select
+            value={makeupPeriodId}
+            onChange={(e) => {
+              const next = e.target.value ? Number(e.target.value) : "";
+              setMakeupPeriodId(next);
+              apply("makeup", subjectId, makeupDate, next);
+            }}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-xs"
+          >
+            <option value="">コマ未指定</option>
+            {periods.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          {makeupDate && makeupPeriodId !== "" && (
+            <span className="text-xs" style={{ color: "var(--color-makeup)" }}>
+              {makeupDate}の該当コマに「振替追加」として表示されます
+            </span>
+          )}
+        </div>
       )}
     </li>
   );
