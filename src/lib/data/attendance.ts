@@ -131,3 +131,33 @@ export async function deleteAttendanceRecord(id: number) {
     .eq("id", id);
   if (error) throw error;
 }
+
+// 生徒本人の月次カレンダー用: その月の出欠記録(元の日付分+振替先として追加された分)をまとめて取得
+export async function getAttendanceRecordsForStudentMonth(
+  studentId: number,
+  year: number,
+  month: number
+) {
+  const start = `${year}-${String(month).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const end = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  const [byDate, byMakeupDate] = await Promise.all([
+    supabase
+      .from("attendance_records")
+      .select("*")
+      .eq("student_id", studentId)
+      .gte("date", start)
+      .lte("date", end),
+    supabase
+      .from("attendance_records")
+      .select("*")
+      .eq("student_id", studentId)
+      .gte("makeup_date", start)
+      .lte("makeup_date", end),
+  ]);
+  if (byDate.error) throw byDate.error;
+  if (byMakeupDate.error) throw byMakeupDate.error;
+
+  return { byDate: byDate.data ?? [], byMakeupDate: byMakeupDate.data ?? [] };
+}

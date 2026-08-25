@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type { AttendanceRequestWithStudent, Period } from "@/lib/types";
 import { approveRequestAction, rejectRequestAction } from "./actions";
 
@@ -69,6 +69,7 @@ function RequestRow({
   actionable: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [resultMsg, setResultMsg] = useState<string | null>(null);
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -93,30 +94,46 @@ function RequestRow({
         )}
       </div>
 
-      {actionable ? (
-        <div className="flex gap-2">
-          <button
-            disabled={isPending}
-            onClick={() => startTransition(() => approveRequestAction(request.id))}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-            style={{ background: "var(--color-present)" }}
-          >
-            承認
-          </button>
-          <button
-            disabled={isPending}
-            onClick={() => startTransition(() => rejectRequestAction(request.id))}
-            className="rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-            style={{ borderColor: "var(--color-absent)", color: "var(--color-absent)" }}
-          >
-            却下
-          </button>
-        </div>
-      ) : (
-        <span className="text-xs text-[var(--color-ink-soft)]">
-          {STATUS_LABEL[request.status]}
-        </span>
-      )}
+      <div className="flex flex-col items-end gap-1">
+        {actionable ? (
+          <div className="flex gap-2">
+            <button
+              disabled={isPending}
+              onClick={() =>
+                startTransition(async () => {
+                  const res = await approveRequestAction(request.id);
+                  setResultMsg(
+                    res.reflected
+                      ? "承認し、出欠にも反映しました"
+                      : "承認しました(対象コマ未指定のため出欠には未反映。/attendanceから手動入力してください)"
+                  );
+                })
+              }
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              style={{ background: "var(--color-present)" }}
+            >
+              承認
+            </button>
+            <button
+              disabled={isPending}
+              onClick={() => startTransition(() => rejectRequestAction(request.id))}
+              className="rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              style={{ borderColor: "var(--color-absent)", color: "var(--color-absent)" }}
+            >
+              却下
+            </button>
+          </div>
+        ) : (
+          <span className="text-xs text-[var(--color-ink-soft)]">
+            {STATUS_LABEL[request.status]}
+          </span>
+        )}
+        {resultMsg && (
+          <span className="max-w-[16rem] text-right text-[10px] text-[var(--color-ink-soft)]">
+            {resultMsg}
+          </span>
+        )}
+      </div>
     </li>
   );
 }

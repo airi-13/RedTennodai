@@ -5,11 +5,38 @@ import { buildStudentCalendar } from "@/lib/data/calendar";
 
 export const dynamic = "force-dynamic";
 
-const ITEM_STYLE: Record<string, { bg: string; label: string }> = {
-  lesson: { bg: "var(--color-accent-soft)", label: "" },
-  announcement: { bg: "#FFF3CD", label: "お知らせ" },
-  school_event: { bg: "#E3EEFB", label: "学校行事" },
-};
+function lessonLabel(item: Extract<import("@/lib/data/calendar").CalendarDayItem, { type: "lesson" }>) {
+  const base = `${item.periodLabel} ${item.subject}`;
+  switch (item.status) {
+    case "absent":
+      return `${base}(欠席)`;
+    case "late":
+      return `${base}(遅刻)`;
+    case "makeup":
+      return `${base}(振替→${item.transferToDate ?? "未定"})`;
+    case "makeup_added":
+      return `${base}(振替追加・元${item.transferFromDate ?? ""} ${item.transferFromPeriodLabel ?? ""})`;
+    default:
+      return base;
+  }
+}
+
+function itemStyle(item: import("@/lib/data/calendar").CalendarDayItem) {
+  if (item.type === "announcement") return { bg: "#FFF3CD" };
+  if (item.type === "school_event") return { bg: "#E3EEFB" };
+  switch (item.status) {
+    case "absent":
+      return { bg: "var(--color-absent)", color: "white" };
+    case "makeup":
+      return { bg: "var(--color-makeup)", color: "white" };
+    case "makeup_added":
+      return { bg: "var(--color-makeup)", color: "white" };
+    case "late":
+      return { bg: "var(--color-late)", color: "white" };
+    default:
+      return { bg: "var(--color-accent-soft)" };
+  }
+}
 
 function monthLabel(year: number, month: number) {
   return `${year}年${month}月`;
@@ -116,16 +143,10 @@ export default async function MyCalendarPage({
                 <div
                   key={i}
                   className="truncate rounded px-1 text-[10px]"
-                  style={{ background: ITEM_STYLE[item.type]?.bg ?? "#eee" }}
-                  title={
-                    item.type === "lesson"
-                      ? `${item.periodLabel} ${item.subject}`
-                      : item.title
-                  }
+                  style={itemStyle(item)}
+                  title={item.type === "lesson" ? lessonLabel(item) : item.title}
                 >
-                  {item.type === "lesson"
-                    ? `${item.periodLabel} ${item.subject}`
-                    : item.title}
+                  {item.type === "lesson" ? lessonLabel(item) : item.title}
                 </div>
               ))}
             </div>

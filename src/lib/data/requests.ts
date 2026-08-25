@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
-import type { AttendanceRequestWithStudent, RequestStatus } from "@/lib/types";
+import { upsertAttendance } from "@/lib/data/attendance";
+import { dayOfWeekFromDateString } from "@/lib/data/attendance";
+import type { AttendanceRequest, AttendanceRequestWithStudent, RequestStatus } from "@/lib/types";
 
 export async function listRequests(
   status?: RequestStatus
@@ -35,4 +37,48 @@ export async function setRequestStatus(id: number, status: RequestStatus) {
     .update({ status, processed_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw error;
+}
+
+// 申請を承認し、対象のコマが指定されていればattendance_recordsにも自動反映する。
+// - 欠席申請: target_period_idのコマをstatus='absent'に
+// - 振替申請: target_period_idのコマをstatus='makeup'にし、振替先(makeup_date/period)を記録
+// target_period_idが未指定の場合は、どのコマか特定できないためattendance_requestsのステータス変更のみ行う。
+export async function approveRequest(id: number): Promise<{ reflected: boolean }> {
+  const { data: req, error } = await supabase
+    .from("attendance_requests")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  const request = req as AttendanceRequest;
+
+  let reflected = false;
+
+  if (request.target_period_id) {
+    const dayOfWeek = dayOfWeekFromDateString(request.target_date);
+    const { data: schedule } = await supabase
+      .from("student_schedules")
+      .select("subject_id")
+      .eq("student_id", request.student_id)
+      .eq("day_of_week", dayOfWeek)
+      .eq("period_id", request.target_period_id)
+      .maybeSingle();
+
+    if (schedule) {
+      await upsertAttendance({
+        student_id: request.student_id,
+        date: request.target_date,
+        period_id: request.target_period_id,
+        subject_id: schedule.subject_id,
+        status: request.request_type === "makeup" ? "makeup" : "absent",
+        makeup_date: request.request_type === "makeup" ? request.makeup_date : null,
+        makeup_period_id:
+          request.request_type === "makeup" ? request.makeup_period_id : null,
+      });
+      reflected = true;
+    }
+  }
+
+  await setRequestStatus(id, "approved");
+  return { reflected };
 }
