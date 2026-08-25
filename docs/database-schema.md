@@ -15,6 +15,15 @@ DDL本体: [`schema.sql`](./schema.sql) を参照(このドキュメントは設
 | `student_schedules` | 生徒ごとの定期スケジュール(曜日×コマ×科目) |
 | `attendance_requests` | 欠席・振替の申請 |
 | `attendance_records` | 出欠の実績記録(その日・そのコマの実際の状態) |
+| `schools` | 学校マスタ(生徒の通学先を正規化) |
+| `school_events` | 学校ごとの行事予定(生徒本人カレンダーに表示) |
+| `calendar_closures` | 休講・特別開講の1日単位の例外設定 |
+| `schedule_announcements` | 塾からのお知らせ(日付紐付け) |
+| `admin_todos` | 管理者用TODO(/admin-calendar) |
+| `pricing_rules` | 学年区分ごとの1コマ単価(/my/pricing) |
+| `textbooks` | 使用テキスト一覧(/materials, /my/textbooks) |
+
+> `schools`〜`textbooks`の7テーブルおよび`attendance_records.makeup_date`/`makeup_period_id`は、admin-calendar・materials等の機能追加時にSupabase側へは反映したもののこのドキュメントへの追記が漏れていたものです(2026-08-25にコード実態から追記)。実際の型・制約は`schema.sql`のコメント通りコードからの逆算のため、Supabase側の実テーブル定義と差異がないか確認してください。
 
 ## ER図
 
@@ -144,7 +153,17 @@ erDiagram
 | absent | 欠席 |
 | late | 遅刻 |
 | makeup | 振替(この回自体が振替授業) |
+### schools / school_events(学校マスタ・学校行事)
+生徒の`school_name`を自由入力のままにせず、`schools`テーブルで正規化する。生徒登録・編集時に学校名を入力すると`findOrCreateSchoolByName()`が同名の行を探し、無ければ新規作成して`students.school_id`に紐付ける。`school_events`はその学校の行事予定で、生徒本人の月次カレンダー(`/my`)に自校の行事として表示される。
 
+### calendar_closures / schedule_announcements(休講設定・お知らせ)
+デフォルトでは日曜・月曜が休講(`isDefaultClosedWeekday`)という前提のうえで、`calendar_closures`に1日単位の例外(特別開講・追加休講)を`closure_date`をキーに登録できる。`schedule_announcements`は日付に紐づく塾からのお知らせで、生徒側カレンダーに表示される。どちらも`/admin-calendar`から管理する。
+
+### admin_todos(管理者用TODO)
+`/admin-calendar`で管理者が日付ごとに管理する簡易TODO。生徒側には公開しない。
+
+### pricing_rules / textbooks(料金・テキスト)
+`pricing_rules`は学年区分(`grade_label`)ごとの1コマ単価で、`/my/pricing`の料金シミュレーションの元データ。`textbooks`は科目・学年別の使用テキストで、`/materials`(管理画面)で登録し`/my/textbooks`(生徒側)で閲覧する。
 ## 出欠データの表示ロジック(重要)
 
 1. 管理画面で日付を選択すると、その日の曜日をもとに`student_schedules`を検索し、コマごとの「本来来るはずの生徒一覧」を算出する(バッチ生成なし)。
@@ -153,9 +172,10 @@ erDiagram
 
 ## 確認・検討事項
 
-1. `attendance_requests`が承認された際、`attendance_records`を自動更新するか、手動で確認・入力するか未確定です。
+1. ~~`attendance_requests`が承認された際、`attendance_records`を自動更新するか、手動で確認・入力するか未確定です。~~ → 解決済み。`approveRequest()`が対象コマを特定できる場合は自動反映し、特定できない場合のみ管理者に手動反映を促す(2026-08-25確認)。
 2. `students`に他に必要な項目(保護者連絡先など)があれば追加します(学校名は追加済み)。
 3. 80分授業の連続コマ検証(上記)はDBの制約ではなくアプリ側で実装する前提です。DB側での制約化(トリガー等)が必要であれば別途相談してください。
+4. 【運用ルール】DBスキーマ変更時は`schema.sql`と`database-schema.md`を必ず同期させる方針だが、admin-calendar/materials機能の追加時に実際は守られていなかった(2026-08-25に発覚・追記して解消)。今後スキーマ変更を伴う機能を追加する際は、実装のたびに両ファイルの更新まで含めて完了とすること。
 
 ## 決定済み事項
 
