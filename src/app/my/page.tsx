@@ -83,9 +83,9 @@ export default async function MyCalendarPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{student.name}さんのカレンダー</h1>
-        <div className="flex gap-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-display text-lg font-bold">{student.name}さんのカレンダー</h1>
+        <div className="flex flex-wrap gap-3 text-sm">
           <Link href="/my/history" className="text-[var(--color-ink-soft)] underline">
             出欠履歴
           </Link>
@@ -105,53 +105,82 @@ export default async function MyCalendarPage({
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-4">
-        <Link
-          href={`/my?y=${prev.y}&m=${prev.m}`}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        >
-          ← 前月
-        </Link>
-        <span className="font-medium">{monthLabel(year, month)}</span>
-        <Link
-          href={`/my?y=${next.y}&m=${next.m}`}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        >
-          翌月 →
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-[var(--color-ink-soft)]">
-        {["日", "月", "火", "水", "木", "金", "土"].map((d) => (
-          <div key={d}>{d}</div>
-        ))}
-        {leadingBlanks.map((_, i) => (
-          <div key={`blank-${i}`} />
-        ))}
-        {days.map((day) => (
-          <div
-            key={day.date}
-            className="min-h-[72px] rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 text-left"
-            style={day.status === "closed" ? { background: "var(--color-bg)" } : undefined}
+      <div className="rounded-lg border-2 border-[var(--color-ink)] bg-[var(--color-surface)] p-4">
+        <div className="mb-3 flex items-center justify-center gap-4">
+          <Link
+            href={`/my?y=${prev.y}&m=${prev.m}`}
+            className="rounded-full border border-[var(--color-ink)] px-2 py-0.5 text-sm"
           >
-            <div className="text-[10px] text-[var(--color-ink-soft)]">
-              {Number(day.date.slice(-2))}
-              {day.status === "closed" && <span className="ml-1">休講</span>}
+            ←
+          </Link>
+          <span className="font-display font-bold">{monthLabel(year, month)}</span>
+          <Link
+            href={`/my?y=${next.y}&m=${next.m}`}
+            className="rounded-full border border-[var(--color-ink)] px-2 py-0.5 text-sm"
+          >
+            →
+          </Link>
+        </div>
+
+        <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-ink-soft)]">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-accent-soft)" }} />
+            通常授業
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-absent)" }} />
+            欠席
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-makeup)" }} />
+            振替
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#E3EEFB" }} />
+            学校行事
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#FFF3CD" }} />
+            塾のお知らせ
+          </span>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-[var(--color-ink-soft)]">
+          {["日", "月", "火", "水", "木", "金", "土"].map((d) => (
+            <div key={d}>{d}</div>
+          ))}
+          {leadingBlanks.map((_, i) => (
+            <div key={`blank-${i}`} />
+          ))}
+          {days.map((day) => (
+            <div
+              key={day.date}
+              className="min-h-[72px] rounded-md border border-[var(--color-border)] bg-white p-1 text-left"
+              style={day.status === "closed" ? { background: "var(--color-accent-soft)" } : undefined}
+            >
+              <div className="text-[10px] text-[var(--color-ink-soft)]">
+                {Number(day.date.slice(-2))}
+                {day.status === "closed" && (
+                  <span className="ml-1 font-bold" style={{ color: "var(--color-accent-dark)" }}>
+                    休
+                  </span>
+                )}
+              </div>
+              <div className="mt-0.5 space-y-0.5">
+                {day.items.map((item, i) => (
+                  <div
+                    key={i}
+                    className="truncate rounded px-1 text-[10px]"
+                    style={itemStyle(item)}
+                    title={item.type === "lesson" ? lessonLabel(item) : item.title}
+                  >
+                    {item.type === "lesson" ? lessonLabel(item) : item.title}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="mt-0.5 space-y-0.5">
-              {day.items.map((item, i) => (
-                <div
-                  key={i}
-                  className="truncate rounded px-1 text-[10px]"
-                  style={itemStyle(item)}
-                  title={item.type === "lesson" ? lessonLabel(item) : item.title}
-                >
-                  {item.type === "lesson" ? lessonLabel(item) : item.title}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

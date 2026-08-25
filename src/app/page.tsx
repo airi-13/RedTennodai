@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function Home() {
   return (
     <div className="mx-auto mt-20 max-w-sm space-y-8 text-center">
-      <h1 className="text-xl font-semibold">RED教室</h1>
+      <p className="font-display text-lg font-bold">天王台教室</p>
       <div className="space-y-3">
         <Link
           href="/login"

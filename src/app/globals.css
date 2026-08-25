@@ -1,23 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap');
 @import "tailwindcss";
 
-:root {
-  --color-bg: #f7f7f5;
-  --color-surface: #ffffff;
-  --color-ink: #1f2320;
-  --color-ink-soft: #5c6560;
-  --color-border: #dfe3df;
-  --color-accent: #2f6f4e;
-  --color-accent-soft: #e6f0ea;
+:root{
+  --color-bg:#EFEAE0;
+  --color-surface:#F8F5EE;
+  --color-ink:#1B2A4A;
+  --color-ink-soft:#5B6B8C;
+  --color-border:#D8D2C2;
+  --color-accent:#D13C18;
+  --color-accent-soft:#F5D9CE;
+  --color-accent-dark:#A22E11;
 
-  --color-present: #2f6f4e;
-  --color-absent: #b0483f;
-  --color-late: #c08a2e;
-  --color-makeup: #3d6ea5;
+  --color-present:#6E9C8C;
+  --color-absent:#A22E11;
+  --color-late:#C9932F;
+  --color-makeup:#4C7FA3;
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP",
-    system-ui, sans-serif;
+  font-family: 'Zen Kaku Gothic New', -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+    "Noto Sans JP", system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: 'Shippori Mincho', serif;
 }

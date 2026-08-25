@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
 import "./globals.css";
 import { HeaderNav } from "./HeaderNav";
 
 export const metadata: Metadata = {
-  title: "RED教室 出欠管理",
+  title: "自立学習RED 天王台教室",
   description: "RED教室の生徒管理・出欠管理システム",
 };
 
@@ -16,11 +18,11 @@ export default function RootLayout({
     <html lang="ja">
       <body>
         <div className="min-h-screen">
-          <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+          <header className="border-b-2 border-[var(--color-ink)] bg-[var(--color-surface)]">
             <div className="mx-auto flex max-w-4xl items-center gap-6 px-4 py-3">
-              <span className="font-semibold tracking-tight text-[var(--color-ink)]">
-                RED教室
-              </span>
+              <Link href="/" className="shrink-0">
+                <Image src="/logo.png" alt="自立学習RED" width={140} height={40} priority />
+              </Link>
               <HeaderNav />
             </div>
           </header>

@@ -54,8 +54,8 @@ RED教室(個人経営の学習塾、生徒数は小学生〜高校生で最大5
 ## 未完了・次のステップ
 
 - 学校マスタと既存生徒の紐付けは新規登録時のみ自動化されている(生徒編集で後から学校を変更するUIはまだ無い)
-- `attendance_requests`承認時に`attendance_records`への自動反映は行われない(手動反映の運用)
-- 週次バックアップ(Supabase → Google Drive、GitHub Actions)は`.github/workflows/supabase-backup.yml`として追加済み。Secretsは管理者が直接GitHub側で設定する運用(このリポジトリやチャットには機密情報を残さない方針)
+- 週次バックアップ(Supabase → Google Drive)は`.github/workflows/supabase-backup.yml`として稼働中。**サービスアカウント方式ではなくOAuth方式**(個人のGoogle Driveに書き込むため)。GitHub Secretsは`SUPABASE_DB_URL` / `GDRIVE_CLIENT_ID` / `GDRIVE_CLIENT_SECRET` / `GDRIVE_REFRESH_TOKEN` / `GDRIVE_FOLDER_ID`の5つ。OAuth同意画面は「本番」公開必須(「テスト中」だとリフレッシュトークンが7日で失効する)。pg_dumpはSupabase側のバージョン(17系)に合わせて明示インストールしている。
+- 申請承認時の自動反映は実装済み(2026-08-25〜): `/requests`で承認すると、対象コマが指定されていれば`attendance_records`に自動反映され、生徒側`/my`のカレンダーにも即座に反映される(欠席→欠席表示、振替→元のコマに振替先を表示+振替先の日に追加コマとして表示)。対象コマが未指定の申請は自動反映されず、管理者が`/attendance`から手動入力する必要がある。
 
 その他、`docs/database-schema.md`の「確認・検討事項」に残っている細かい論点も参照。
 
