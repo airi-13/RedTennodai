@@ -7,6 +7,7 @@ import {
   createStudentWithLoginAction,
   removeScheduleAction,
   setStudentActiveAction,
+  updateStudentAction,
 } from "./actions";
 import { isValidEightyMinutePair } from "@/lib/schedule-rules";
 import { BulkImport } from "./BulkImport";
@@ -233,6 +234,7 @@ function StudentRow({
   onToggle: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
   const eightyMin = needsEightyMinutes(student.school_level, student.grade);
 
   return (
@@ -253,6 +255,12 @@ function StudentRow({
           )}
         </button>
         <button
+          onClick={() => setEditing((v) => !v)}
+          className="text-xs text-[var(--color-ink-soft)] underline"
+        >
+          {editing ? "編集を閉じる" : "編集"}
+        </button>
+        <button
           disabled={isPending}
           onClick={() =>
             startTransition(() =>
@@ -265,7 +273,11 @@ function StudentRow({
         </button>
       </div>
 
-      {expanded && (
+      {editing && (
+        <EditStudentForm student={student} onDone={() => setEditing(false)} />
+      )}
+
+      {expanded && !editing && (
         <ScheduleEditor
           student={student}
           schedules={schedules}
@@ -275,6 +287,124 @@ function StudentRow({
         />
       )}
     </li>
+  );
+}
+
+function EditStudentForm({
+  student,
+  onDone,
+}: {
+  student: Student;
+  onDone: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [name, setName] = useState(student.name);
+  const [nameKana, setNameKana] = useState(student.name_kana ?? "");
+  const [schoolLevel, setSchoolLevel] = useState(
+    student.school_level ?? "小学生"
+  );
+  const [schoolName, setSchoolName] = useState(student.school_name ?? "");
+  const [grade, setGrade] = useState(student.grade ?? 1);
+  const [note, setNote] = useState(student.note ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    if (!name.trim()) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await updateStudentAction(student.id, {
+          name: name.trim(),
+          name_kana: nameKana.trim() || null,
+          school_level: schoolLevel,
+          school_name: schoolName.trim() || null,
+          grade,
+          note: note.trim() || null,
+        });
+        onDone();
+      } catch (e: any) {
+        setError(e?.message ?? "更新に失敗しました");
+      }
+    });
+  }
+
+  return (
+    <div className="mt-3 space-y-3 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="氏名">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          />
+        </Field>
+        <Field label="フリガナ">
+          <input
+            value={nameKana}
+            onChange={(e) => setNameKana(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          />
+        </Field>
+        <Field label="区分">
+          <select
+            value={schoolLevel}
+            onChange={(e) => setSchoolLevel(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          >
+            <option value="小学生">小学生</option>
+            <option value="中学生">中学生</option>
+            <option value="高校生">高校生</option>
+          </select>
+        </Field>
+        <Field label="学年">
+          <input
+            type="number"
+            min={1}
+            max={6}
+            value={grade}
+            onChange={(e) => setGrade(Number(e.target.value))}
+            className="w-16 rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          />
+        </Field>
+        <Field label="学校名">
+          <input
+            value={schoolName}
+            onChange={(e) => setSchoolName(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+            placeholder="○○小学校"
+          />
+        </Field>
+      </div>
+      <Field label="メモ">
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+        />
+      </Field>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={submit}
+          disabled={isPending || !name.trim()}
+          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          style={{ background: "var(--color-accent)" }}
+        >
+          保存
+        </button>
+        <button
+          onClick={onDone}
+          disabled={isPending}
+          className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          キャンセル
+        </button>
+      </div>
+      {error && (
+        <p className="text-xs" style={{ color: "var(--color-absent)" }}>
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -305,7 +435,6 @@ function ScheduleEditor({
     [subjects]
   );
 
-  // 曜日ごとにグループ化して表示
   const byDay = useMemo(() => {
     const map = new Map<number, StudentSchedule[]>();
     for (const s of schedules) {
@@ -322,7 +451,6 @@ function ScheduleEditor({
     return map;
   }, [schedules, periodById]);
 
-  // 追加しようとしているコマが、既存の同曜日・同科目のコマと80分ペアを組めるか警告用に判定
   const willFormValidPair = useMemo(() => {
     if (!eightyMin) return true;
     const sameDaySubject = (byDay.get(dayOfWeek) ?? []).filter(
@@ -330,7 +458,7 @@ function ScheduleEditor({
     );
     const newSort = periodById.get(periodId)?.sort_order;
     if (newSort == null) return true;
-    if (sameDaySubject.length === 0) return false; // 単独追加はまだペア不成立
+    if (sameDaySubject.length === 0) return false;
     return sameDaySubject.some((s) => {
       const existingSort = periodById.get(s.period_id)?.sort_order;
       return (
