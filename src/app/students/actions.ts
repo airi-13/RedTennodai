@@ -1,7 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createStudent, createStudentWithLogin, updateStudentStatus, type NewStudent } from "@/lib/data/students";
+import {
+  createStudent,
+  createStudentWithLogin,
+  updateStudent,
+  updateStudentStatus,
+  type NewStudent,
+  type StudentUpdate,
+} from "@/lib/data/students";
 import { addSchedule, deleteSchedule } from "@/lib/data/schedules";
 
 export async function createStudentAction(input: NewStudent) {
@@ -50,6 +57,14 @@ export async function bulkCreateStudentsAction(
   }
   revalidatePath("/students");
   return results;
+}
+
+export async function updateStudentAction(id: number, input: StudentUpdate) {
+  const student = await updateStudent(id, input);
+  revalidatePath("/students");
+  revalidatePath("/attendance");
+  revalidatePath("/my");
+  return student;
 }
 
 export async function setStudentActiveAction(id: number, active: boolean) {
