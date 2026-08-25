@@ -80,6 +80,42 @@ export async function createStudentWithLogin(
   return data;
 }
 
+export type StudentUpdate = {
+  name?: string;
+  name_kana?: string | null;
+  gender?: string | null;
+  school_level?: string | null;
+  school_name?: string | null;
+  grade?: number | null;
+  note?: string | null;
+};
+
+// 生徒情報を編集する。school_nameが指定された場合は学校マスタ(schools)も
+// findOrCreateSchoolByNameで再解決し、students.school_idを付け替える。
+// school_nameを空文字にした場合は学校の紐付けを解除する。
+export async function updateStudent(
+  id: number,
+  input: StudentUpdate
+): Promise<Student> {
+  const { school_name, ...rest } = input;
+  const payload: Record<string, unknown> = { ...rest };
+
+  if (school_name !== undefined) {
+    payload.school_name = school_name;
+    payload.school_id = school_name
+      ? (await findOrCreateSchoolByName(school_name)).id
+      : null;
+  }
+
+  const { data, error } = await supabase
+    .from("students")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
 export async function updateStudentStatus(
   id: number,
   status: "active" | "inactive"
