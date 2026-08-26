@@ -4,9 +4,8 @@
 ALTER TABLE textbooks
   ADD COLUMN IF NOT EXISTS level TEXT;
 
--- 既存の区分情報が description に入っている場合も、今回はデータを全削除するため
--- level は新規登録時に必須とする。
-UPDATE textbooks SET level = NULL;
+-- 既存教材は今回すべて破棄するため、levelを埋める必要はない。
+DELETE FROM textbooks;
 
 ALTER TABLE textbooks
   ALTER COLUMN level SET NOT NULL;
@@ -32,8 +31,6 @@ ALTER TABLE textbooks
     (level = '中学生' AND grade_label IN ('1年','2年','3年','新高1')) OR
     (level = '高校生' AND grade_label IN ('1年','2年','3年'))
   );
-
-DELETE FROM textbooks;
 
 -- 区分を補足説明として使う旧運用を終了する。
 -- description は純粋な補足情報として残す。
