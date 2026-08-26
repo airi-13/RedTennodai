@@ -437,3 +437,19 @@ INSERT INTO textbooks (subject, title, description, grade_label) VALUES
 ('理科', 'フォレスタ', '高校生', '生物'),
 ('社会', 'フォレスタ', '高校生', '地理総合'),
 ('社会', 'フォレスタ', '高校生', '歴史総合');
+
+-- =====================================================
+-- 16. notices（生徒トップページのお知らせ掲示板）
+-- 日付に紐づかない一般的な告知。/admin-calendarで管理者が投稿し、
+-- 生徒側/myカレンダー上部に新しい順で表示する。
+-- =====================================================
+CREATE TABLE notices (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title       TEXT NOT NULL,
+  body        TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE notices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "notices_select_authenticated" ON notices
+  FOR SELECT TO authenticated USING (true);

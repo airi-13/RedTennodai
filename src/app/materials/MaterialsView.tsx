@@ -80,15 +80,6 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
     );
   }, [textbooks, filterLevel, filterSubject, filterGrade]);
 
-  const filteredTextbooks = useMemo(() => {
-    return textbooks.filter(
-      (t) =>
-        (!filterLevel || t.description === filterLevel) &&
-        (!filterSubject || t.subject === filterSubject) &&
-        (!filterGrade || t.grade_label === filterGrade)
-    );
-  }, [textbooks, filterLevel, filterSubject, filterGrade]);
-
   return (
     <section className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <h2 className="font-medium">使用テキスト</h2>
