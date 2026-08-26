@@ -38,17 +38,26 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const [gradeLabel, setGradeLabel] = useState("");
   const [description, setDescription] = useState("");
 
-  // 絞り込み条件(区分[小学生/中学生/高校生]・科目・学年)
+   // 絞り込み条件(区分[小学生/中学生/高校生]・科目・学年)
   const [filterLevel, setFilterLevel] = useState("");
   const [filterSubject, setFilterSubject] = useState("");
   const [filterGrade, setFilterGrade] = useState("");
 
-  const levelOrder = ["小学生", "中学生", "高校生"];
+  // 絞り込みの選択肢は固定(データから動的に出さない)
+  const LEVELS = ["小学生", "中学生", "高校生"];
+  const SUBJECTS = ["英語", "数学", "理科", "社会", "国語"];
+  const GRADES = ["１年", "２年", "３年", "４年", "５年", "６年"];
 
-  const levelOptions = useMemo(() => {
-    const set = new Set(textbooks.map((t) => t.description).filter(Boolean) as string[]);
-    return levelOrder.filter((l) => set.has(l));
-  }, [textbooks]);
+  // grade_labelが未設定(学年という概念のないテキスト、例: 高校のコース別テキストや
+  // 中学の地理・歴史・公民、旧「全学年」相当)は、どの学年を選んでも常に表示する。
+  const filteredTextbooks = useMemo(() => {
+    return textbooks.filter(
+      (t) =>
+        (!filterLevel || t.description === filterLevel) &&
+        (!filterSubject || t.subject === filterSubject) &&
+        (!filterGrade || !t.grade_label || t.grade_label === filterGrade)
+    );
+  }, [textbooks, filterLevel, filterSubject, filterGrade]);
 
   // 科目の選択肢は、区分の絞り込みがあればその区分内に存在する科目だけに絞る
   const subjectOptions = useMemo(() => {
