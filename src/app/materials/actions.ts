@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createTextbook, deleteTextbook } from "@/lib/data/textbooks";
+import type { TextbookLevel, TextbookSubject } from "@/lib/data/textbooks";
 import { upsertPricingRule } from "@/lib/data/pricing";
 
 function refresh() {
@@ -11,11 +12,12 @@ function refresh() {
 }
 
 export async function createTextbookAction(input: {
-  subject: string;
+  level: TextbookLevel;
+  subject: TextbookSubject;
   title: string;
   publisher?: string;
   description?: string;
-  grade_label?: string;
+  grade_label: string;
 }) {
   await createTextbook(input);
   refresh();
