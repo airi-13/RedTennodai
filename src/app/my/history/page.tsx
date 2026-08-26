@@ -63,17 +63,7 @@ export default async function MyPage() {
 
   return (
     <div className="space-y-8">
-      <Link href="/my" className="text-sm text-[var(--color-ink-soft)] underline">
-        ← カレンダーに戻る
-      </Link>
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{student.name}さんのマイページ</h1>
-        <form action={studentLogoutAction}>
-          <button className="text-xs text-[var(--color-ink-soft)] underline">
-            ログアウト
-          </button>
-        </form>
-      </div>
+      <h1 className="text-lg font-semibold">{student.name}さんの出欠履歴</h1>
 
       <Link
         href="/my/request"

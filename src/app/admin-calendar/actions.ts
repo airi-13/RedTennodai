@@ -5,10 +5,21 @@ import { setClosure, clearClosure, createAnnouncement, deleteAnnouncement } from
 import { findOrCreateSchoolByName, deleteSchool } from "@/lib/data/schools";
 import { createSchoolEvent, deleteSchoolEvent } from "@/lib/data/school-events";
 import { createTodo, toggleTodoDone, deleteTodo } from "@/lib/data/admin-todos";
+import { createNotice, deleteNotice } from "@/lib/data/notices";
 
 function refresh() {
   revalidatePath("/admin-calendar");
   revalidatePath("/my");
+  revalidatePath("/dashboard");
+}
+
+export async function createNoticeAction(input: { title: string; body?: string }) {
+  await createNotice(input);
+  refresh();
+}
+export async function deleteNoticeAction(id: string) {
+  await deleteNotice(id);
+  refresh();
 }
 
 export async function setClosureAction(date: string, status: "closed" | "open", note?: string) {

@@ -22,19 +22,18 @@ function lessonLabel(item: Extract<import("@/lib/data/calendar").CalendarDayItem
 }
 
 function itemStyle(item: import("@/lib/data/calendar").CalendarDayItem) {
-  if (item.type === "announcement") return { bg: "#FFF3CD" };
-  if (item.type === "school_event") return { bg: "#E3EEFB" };
+  if (item.type === "announcement") return { background: "#FFF3CD" };
+  if (item.type === "school_event") return { background: "#E3EEFB" };
   switch (item.status) {
     case "absent":
-      return { bg: "var(--color-absent)", color: "white" };
-    case "makeup":
-      return { bg: "var(--color-makeup)", color: "white" };
-    case "makeup_added":
-      return { bg: "var(--color-makeup)", color: "white" };
+    case "makeup": // 振替前(元)のコマも欠席と同様に赤
+      return { background: "var(--color-absent)", color: "white" };
+    case "makeup_added": // 振替先のコマ
+      return { background: "var(--color-makeup)", color: "white" };
     case "late":
-      return { bg: "var(--color-late)", color: "white" };
-    default:
-      return { bg: "var(--color-accent-soft)" };
+      return { background: "var(--color-late)", color: "white" };
+    default: // scheduled / present: 通常授業は黒文字
+      return { background: "transparent", color: "var(--color-ink)", border: "1px solid var(--color-border)" };
   }
 }
 
@@ -68,12 +67,15 @@ export default async function MyCalendarPage({
     return <p>生徒情報が見つかりませんでした。教室までお問い合わせください。</p>;
   }
 
-  const days = await buildStudentCalendar({
-    studentId: student.id,
-    schoolId: student.school_id,
-    year,
-    month,
-  });
+  const [days, { data: notices }] = await Promise.all([
+    buildStudentCalendar({
+      studentId: student.id,
+      schoolId: student.school_id,
+      year,
+      month,
+    }),
+    supabase.from("notices").select("*").order("created_at", { ascending: false }).limit(5),
+  ]);
 
   const firstWeekday = new Date(year, month - 1, 1).getDay();
   const leadingBlanks = Array.from({ length: firstWeekday });
@@ -83,27 +85,23 @@ export default async function MyCalendarPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-display text-lg font-bold">{student.name}さんのカレンダー</h1>
-        <div className="flex flex-wrap gap-3 text-sm">
-          <Link href="/my/history" className="text-[var(--color-ink-soft)] underline">
-            出欠履歴
-          </Link>
-          <Link href="/my/textbooks" className="text-[var(--color-ink-soft)] underline">
-            使用テキスト
-          </Link>
-          <Link href="/my/pricing" className="text-[var(--color-ink-soft)] underline">
-            費用シミュレーション
-          </Link>
-          <Link
-            href="/my/request"
-            className="rounded-md px-3 py-1 font-medium text-white"
-            style={{ background: "var(--color-accent)" }}
-          >
-            欠席・振替を申請
-          </Link>
+      <h1 className="font-display text-lg font-bold">{student.name}さんのカレンダー</h1>
+
+      {notices && notices.length > 0 && (
+        <div className="space-y-2 rounded-lg border-2 border-[var(--color-accent)] bg-[var(--color-accent-soft)] p-4">
+          <p className="font-display text-sm font-bold" style={{ color: "var(--color-accent-dark)" }}>
+            📌 教室からのお知らせ
+          </p>
+          <ul className="space-y-1 text-sm">
+            {notices.map((n) => (
+              <li key={n.id}>
+                <span className="font-medium">{n.title}</span>
+                {n.body && <span className="text-[var(--color-ink-soft)]"> — {n.body}</span>}
+              </li>
+            ))}
+          </ul>
         </div>
-      </div>
+      )}
 
       <div className="rounded-lg border-2 border-[var(--color-ink)] bg-[var(--color-surface)] p-4">
         <div className="mb-3 flex items-center justify-center gap-4">

@@ -6,6 +6,7 @@ import type { Announcement, Closure } from "@/lib/data/announcements";
 import type { School } from "@/lib/data/schools";
 import type { SchoolEvent } from "@/lib/data/school-events";
 import type { AdminTodo } from "@/lib/data/admin-todos";
+import type { Notice } from "@/lib/data/notices";
 import {
   setClosureAction,
   clearClosureAction,
@@ -17,6 +18,8 @@ import {
   createTodoAction,
   toggleTodoAction,
   deleteTodoAction,
+  createNoticeAction,
+  deleteNoticeAction,
 } from "./actions";
 
 function monthLabel(year: number, month: number) {
@@ -31,6 +34,7 @@ export function AdminCalendarView({
   schoolEvents,
   schools,
   todos,
+  notices,
 }: {
   year: number;
   month: number;
@@ -39,6 +43,7 @@ export function AdminCalendarView({
   schoolEvents: (SchoolEvent & { schoolName: string })[];
   schools: School[];
   todos: AdminTodo[];
+  notices: Notice[];
 }) {
   const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
@@ -58,11 +63,75 @@ export function AdminCalendarView({
         </div>
       </div>
 
+      <NoticeSection notices={notices} />
       <ClosureSection closures={closures} />
       <AnnouncementSection announcements={announcements} />
       <SchoolEventSection schoolEvents={schoolEvents} schools={schools} />
       <TodoSection todos={todos} />
     </div>
+  );
+}
+
+function NoticeSection({ notices }: { notices: Notice[] }) {
+  const [isPending, startTransition] = useTransition();
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+
+  return (
+    <SectionCard title="生徒トップページのお知らせ欄">
+      <p className="text-xs text-[var(--color-ink-soft)]">
+        日付に紐づかない一般的なお知らせです。新しいものから生徒側カレンダーの上部に表示されます。
+      </p>
+      <div className="space-y-2">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="タイトル"
+          className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+        />
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="本文(任意)"
+          rows={2}
+          className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+        />
+        <button
+          disabled={isPending || !title.trim()}
+          onClick={() =>
+            startTransition(async () => {
+              await createNoticeAction({ title, body: body || undefined });
+              setTitle("");
+              setBody("");
+            })
+          }
+          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          style={{ background: "var(--color-accent)" }}
+        >
+          掲載する
+        </button>
+      </div>
+      <ul className="space-y-1 text-sm">
+        {notices.map((n) => (
+          <li key={n.id} className="flex items-start justify-between gap-2">
+            <span>
+              <span className="font-medium">{n.title}</span>
+              {n.body && <span className="text-[var(--color-ink-soft)]"> — {n.body}</span>}
+            </span>
+            <button
+              disabled={isPending}
+              onClick={() => startTransition(() => deleteNoticeAction(n.id))}
+              className="shrink-0 text-xs text-[var(--color-ink-soft)] underline"
+            >
+              削除
+            </button>
+          </li>
+        ))}
+        {notices.length === 0 && (
+          <p className="text-sm text-[var(--color-ink-soft)]">まだありません</p>
+        )}
+      </ul>
+    </SectionCard>
   );
 }
 
