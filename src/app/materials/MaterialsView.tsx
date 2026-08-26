@@ -30,6 +30,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// 絞り込みの選択肢は固定(データから動的に出さない)
+const LEVELS = ["小学生", "中学生", "高校生"];
+const SUBJECTS = ["英語", "数学", "理科", "社会", "国語"];
+const GRADES = ["１年", "２年", "３年", "４年", "５年", "６年"];
+
 function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const [isPending, startTransition] = useTransition();
   const [subject, setSubject] = useState("");
@@ -38,15 +43,10 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const [gradeLabel, setGradeLabel] = useState("");
   const [description, setDescription] = useState("");
 
-   // 絞り込み条件(区分[小学生/中学生/高校生]・科目・学年)
+  // 絞り込み条件(区分[小学生/中学生/高校生]・科目・学年)
   const [filterLevel, setFilterLevel] = useState("");
   const [filterSubject, setFilterSubject] = useState("");
   const [filterGrade, setFilterGrade] = useState("");
-
-  // 絞り込みの選択肢は固定(データから動的に出さない)
-  const LEVELS = ["小学生", "中学生", "高校生"];
-  const SUBJECTS = ["英語", "数学", "理科", "社会", "国語"];
-  const GRADES = ["１年", "２年", "３年", "４年", "５年", "６年"];
 
   // grade_labelが未設定(学年という概念のないテキスト、例: 高校のコース別テキストや
   // 中学の地理・歴史・公民、旧「全学年」相当)は、どの学年を選んでも常に表示する。
@@ -56,36 +56,6 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
         (!filterLevel || t.description === filterLevel) &&
         (!filterSubject || t.subject === filterSubject) &&
         (!filterGrade || !t.grade_label || t.grade_label === filterGrade)
-    );
-  }, [textbooks, filterLevel, filterSubject, filterGrade]);
-
-  // 科目の選択肢は、区分の絞り込みがあればその区分内に存在する科目だけに絞る
-  const subjectOptions = useMemo(() => {
-    const scoped = filterLevel ? textbooks.filter((t) => t.description === filterLevel) : textbooks;
-    const set = new Set(scoped.map((t) => t.subject));
-    return [...set].sort((a, b) => a.localeCompare(b, "ja"));
-  }, [textbooks, filterLevel]);
-
-   // 学年の選択肢は、区分・科目の絞り込みがあればその範囲内に存在するものだけに絞る。
-  // 「全学年」はどの学年を選んでも常に含まれる特別な値なので、プルダウンには出さない。
-  const gradeOptions = useMemo(() => {
-    const scoped = textbooks.filter(
-      (t) =>
-        (!filterLevel || t.description === filterLevel) &&
-        (!filterSubject || t.subject === filterSubject)
-    );
-    const set = new Set(
-      scoped.map((t) => t.grade_label).filter((g): g is string => !!g && g !== "全学年")
-    );
-    return [...set].sort((a, b) => a.localeCompare(b, "ja"));
-  }, [textbooks, filterLevel, filterSubject]);
-
-  const filteredTextbooks = useMemo(() => {
-    return textbooks.filter(
-      (t) =>
-        (!filterLevel || t.description === filterLevel) &&
-        (!filterSubject || t.subject === filterSubject) &&
-        (!filterGrade || t.grade_label === filterGrade || t.grade_label === "全学年")
     );
   }, [textbooks, filterLevel, filterSubject, filterGrade]);
 
@@ -130,7 +100,7 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
             className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
           >
             <option value="">すべて</option>
-            {levelOptions.map((l) => (
+            {LEVELS.map((l) => (
               <option key={l} value={l}>
                 {l}
               </option>
@@ -147,7 +117,7 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
             className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
           >
             <option value="">すべて</option>
-            {subjectOptions.map((s) => (
+            {SUBJECTS.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
@@ -161,7 +131,7 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
             className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
           >
             <option value="">すべて</option>
-            {gradeOptions.map((g) => (
+            {GRADES.map((g) => (
               <option key={g} value={g}>
                 {g}
               </option>
@@ -184,8 +154,8 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
       <ul className="space-y-1 text-sm">
         {[...filteredTextbooks]
           .sort((a, b) => {
-            const ai = levelOrder.indexOf(a.description ?? "");
-            const bi = levelOrder.indexOf(b.description ?? "");
+            const ai = LEVELS.indexOf(a.description ?? "");
+            const bi = LEVELS.indexOf(b.description ?? "");
             if (ai !== bi) return ai - bi;
             if (a.subject !== b.subject) return a.subject.localeCompare(b.subject, "ja");
             return a.title.localeCompare(b.title, "ja");
