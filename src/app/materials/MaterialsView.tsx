@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import type { Textbook, TextbookLevel, TextbookSubject } from "@/lib/data/textbooks";
-import { TEXTBOOK_GRADES, TEXTBOOK_LEVELS, TEXTBOOK_SUBJECTS } from "@/lib/data/textbooks";
+import { TEXTBOOK_ALL_GRADES, TEXTBOOK_GRADES, TEXTBOOK_LEVELS, TEXTBOOK_SUBJECTS } from "@/lib/data/textbooks";
 import type { PricingRule } from "@/lib/data/pricing";
 import { createTextbookAction, deleteTextbookAction, upsertPricingRuleAction } from "./actions";
 
@@ -23,7 +23,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const [isPending, startTransition] = useTransition();
   const [level, setLevel] = useState<TextbookLevel>("小学生");
-  const [subject, setSubject] = useState<TextbookSubject>("英語");
+  const [subjects, setSubjects] = useState<TextbookSubject[]>(["英語"]);
   const [title, setTitle] = useState("");
   const [publisher, setPublisher] = useState("");
   const [gradeLabel, setGradeLabel] = useState(TEXTBOOK_GRADES.小学生[0]);
@@ -32,13 +32,16 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const [filterSubject, setFilterSubject] = useState("");
   const [filterGrade, setFilterGrade] = useState("");
 
-  const availableGrades = level ? TEXTBOOK_GRADES[level] : [];
-  const filterGrades = filterLevel ? TEXTBOOK_GRADES[filterLevel as TextbookLevel] : Object.values(TEXTBOOK_GRADES).flat();
+  const availableGrades = [TEXTBOOK_ALL_GRADES, ...TEXTBOOK_GRADES[level]];
+  const filterGrades = filterLevel
+    ? [TEXTBOOK_ALL_GRADES, ...TEXTBOOK_GRADES[filterLevel as TextbookLevel]]
+    : [TEXTBOOK_ALL_GRADES, ...Object.values(TEXTBOOK_GRADES).flat()];
+  const uniqueFilterGrades = [...new Set(filterGrades)];
 
   const filteredTextbooks = useMemo(() => textbooks.filter((t) =>
     (!filterLevel || t.level === filterLevel) &&
-    (!filterSubject || t.subject === filterSubject) &&
-    (!filterGrade || t.grade_label === filterGrade)
+    (!filterSubject || t.subjects.includes(filterSubject as TextbookSubject)) &&
+    (!filterGrade || t.grade_label === TEXTBOOK_ALL_GRADES || t.grade_label === filterGrade)
   ), [textbooks, filterLevel, filterSubject, filterGrade]);
 
   const changeLevel = (value: TextbookLevel) => {
@@ -46,8 +49,14 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
     setGradeLabel(TEXTBOOK_GRADES[value][0]);
   };
 
+  const toggleSubject = (subject: TextbookSubject) => {
+    setSubjects((current) => current.includes(subject)
+      ? current.filter((s) => s !== subject)
+      : [...current, subject]);
+  };
+
   const add = () => startTransition(async () => {
-    await createTextbookAction({ level, subject, title, publisher: publisher || undefined, grade_label: gradeLabel, description: description || undefined });
+    await createTextbookAction({ level, subjects, title, publisher: publisher || undefined, grade_label: gradeLabel, description: description || undefined });
     setTitle(""); setPublisher(""); setDescription("");
   });
 
@@ -65,15 +74,19 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
             {availableGrades.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
         </Field>
-        <Field label="科目">
-          <select value={subject} onChange={(e) => setSubject(e.target.value as TextbookSubject)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
-            {TEXTBOOK_SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+        <Field label="科目（複数選択可）">
+          <div className="flex flex-wrap gap-1 rounded-md border border-[var(--color-border)] p-1">
+            {TEXTBOOK_SUBJECTS.map((s) => (
+              <button key={s} type="button" onClick={() => toggleSubject(s)} className={`rounded px-2 py-1 text-xs ${subjects.includes(s) ? "font-semibold" : "opacity-60"}`} aria-pressed={subjects.includes(s)}>
+                {s}
+              </button>
+            ))}
+          </div>
         </Field>
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="テキスト名" className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />
         <input value={publisher} onChange={(e) => setPublisher(e.target.value)} placeholder="出版社(任意)" className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />
         <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="補足(任意)" className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />
-        <button disabled={isPending || !title} onClick={add} className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--color-accent)" }}>追加</button>
+        <button disabled={isPending || !title || subjects.length === 0} onClick={add} className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--color-accent)" }}>追加</button>
       </div>
 
       <div className="flex flex-wrap items-end gap-2 border-t border-[var(--color-border)] pt-3">
@@ -89,16 +102,16 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
         </Field>
         <Field label="学年で絞り込み">
           <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
-            <option value="">すべて</option>{filterGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+            <option value="">すべて</option>{uniqueFilterGrades.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
         </Field>
         {(filterLevel || filterSubject || filterGrade) && <button onClick={() => { setFilterLevel(""); setFilterSubject(""); setFilterGrade(""); }} className="text-xs text-[var(--color-ink-soft)] underline">絞り込みを解除</button>}
       </div>
 
       <ul className="space-y-1 text-sm">
-        {[...filteredTextbooks].sort((a, b) => `${a.level}${a.grade_label}${a.subject}${a.title}`.localeCompare(`${b.level}${b.grade_label}${b.subject}${b.title}`, "ja")).map((t) => (
+        {[...filteredTextbooks].sort((a, b) => `${a.level}${a.grade_label}${a.title}`.localeCompare(`${b.level}${b.grade_label}${b.title}`, "ja")).map((t) => (
           <li key={t.id} className="flex items-center justify-between">
-            <span>[{t.level}][{t.grade_label}][{t.subject}] {t.title}{t.publisher && ` / ${t.publisher}`}</span>
+            <span>[{t.level}][{t.grade_label}][{t.subjects.join("・")}] {t.title}{t.publisher && ` / ${t.publisher}`}</span>
             <button disabled={isPending} onClick={() => startTransition(() => deleteTextbookAction(t.id))} className="text-xs text-[var(--color-ink-soft)] underline">削除</button>
           </li>
         ))}
