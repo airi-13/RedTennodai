@@ -237,8 +237,133 @@ CREATE POLICY "students select periods" ON periods
 
 CREATE POLICY "students select subjects" ON subjects
   FOR SELECT TO authenticated USING (true);
+
+-- =====================================================
+-- 【2026-08-25追記】以下、admin-calendar/materials機能などで
+-- 実際にSupabase上へ作成済みだがschema.sqlへの追記が漏れていたテーブル群。
+-- コード(src/lib/data/*.ts)の実際の使用箇所から逆算して記載しているため、
+-- 型・制約の細部は必ずSupabase側の実テーブル定義と突き合わせて確認すること。
+-- =====================================================
+
+-- =====================================================
+-- 8. schools（学校マスタ）
+-- 生徒の通学先の学校名を正規化するマスタ。生徒登録時にfindOrCreateSchoolByName()で
+-- 学校名から自動的に取得/新規作成される。school_events の紐付け先。
+-- =====================================================
+CREATE TABLE schools (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        TEXT NOT NULL UNIQUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- students.school_id（未追記だった生徒⇔学校の外部キー）
+ALTER TABLE students
+  ADD COLUMN school_id UUID REFERENCES schools(id);
+
+-- =====================================================
+-- 9. school_events（学校行事）
+-- 学校ごとの行事予定。生徒本人の月次カレンダー(/my)に自校の行事として表示する。
+-- =====================================================
+CREATE TABLE school_events (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  event_date  DATE NOT NULL,
+  title       TEXT NOT NULL,
+  note        TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_school_events_date ON school_events(event_date);
+
+-- =====================================================
+-- 10. calendar_closures（休講・特別開講の例外設定）
+-- デフォルト休講曜日(日・月)に対する、1日単位の例外(特別開講/追加休講)。
+-- 日付ごとに1行のみ持たせる想定で、upsert(closure_date基準)で運用する。
+-- =====================================================
+CREATE TABLE calendar_closures (
+  closure_date  DATE PRIMARY KEY,
+  status        TEXT NOT NULL CHECK (status IN ('closed', 'open')),
+  note          TEXT
+);
+
+-- =====================================================
+-- 11. schedule_announcements（塾からのお知らせ）
+-- 生徒本人の月次カレンダー(/my)に日付紐付けで表示するお知らせ。
+-- =====================================================
+CREATE TABLE schedule_announcements (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_date  DATE NOT NULL,
+  title       TEXT NOT NULL,
+  time_range  TEXT,
+  note        TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_schedule_announcements_date ON schedule_announcements(event_date);
+
+-- =====================================================
+-- 12. admin_todos（管理者用TODO）
+-- /admin-calendar で管理者が日付に紐付けて管理するTODOメモ。
+-- =====================================================
+CREATE TABLE admin_todos (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  todo_date  DATE NOT NULL,
+  content    TEXT NOT NULL,
+  done       BOOLEAN NOT NULL DEFAULT false
+);
+
+CREATE INDEX idx_admin_todos_date ON admin_todos(todo_date);
+
+-- =====================================================
+-- 13. pricing_rules（学年別料金）
+-- 学年区分(grade_label)ごとの1コマあたり単価。/my/pricingの料金シミュレーションで使用。
+-- grade_labelを主キーとしupsertで運用する。
+-- =====================================================
+CREATE TABLE pricing_rules (
+  grade_label     TEXT PRIMARY KEY,
+  price_per_slot  INTEGER NOT NULL
+);
+
+-- =====================================================
+-- 14. textbooks（使用テキスト）
+-- 科目・学年別の使用テキスト一覧。/materials(管理画面)・/my/textbooks(生徒側)で使用。
+-- =====================================================
+CREATE TABLE textbooks (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject      TEXT NOT NULL,
+  title        TEXT NOT NULL,
+  publisher    TEXT,
+  description  TEXT,
+  grade_label  TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =====================================================
+-- attendance_records: 振替(makeup)先の日時カラムを追記
+-- status='makeup'の場合、振替先の日付・コマをここに記録する。
+-- (承認フロー・出欠画面の振替表示で実際に使われているが、記載が漏れていた)
+-- =====================================================
+ALTER TABLE attendance_records
+  ADD COLUMN makeup_date      DATE,
+  ADD COLUMN makeup_period_id INTEGER REFERENCES periods(id);
+
+-- =====================================================
+-- 追加テーブルのRLS方針: 上記の管理系テーブルと同様、
+-- 画面はすべてservice role key経由(Next.jsサーバー)からのみアクセスするため、
+-- authenticated/anonロールへのポリシーは付与しない(RLS有効化のみ)。
+-- =====================================================
+ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_closures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE schedule_announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_todos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pricing_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE textbooks ENABLE ROW LEVEL SECURITY;
+
+-- =====================================================
+-- 15. textbooks 初期データ投入(2026-08-25)
+-- =====================================================
 INSERT INTO textbooks (subject, title, description, grade_label) VALUES
-  
 -- 小学生
 ('英語', 'Ⅰ', '小学生・英検5級相当', NULL),
 ('英語', 'Ⅱ', '小学生・英検4級相当', NULL),
