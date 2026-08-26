@@ -58,22 +58,32 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
           追加
         </button>
       </div>
-      <ul className="space-y-1 text-sm">
-        {textbooks.map((t) => (
-          <li key={t.id} className="flex items-center justify-between">
-            <span>
-              [{t.subject}] {t.title} {t.grade_label && `(${t.grade_label})`}
-              {t.publisher && ` / ${t.publisher}`}
-            </span>
-            <button
-              disabled={isPending}
-              onClick={() => startTransition(() => deleteTextbookAction(t.id))}
-              className="text-xs text-[var(--color-ink-soft)] underline"
-            >
-              削除
-            </button>
-          </li>
-        ))}
+            <ul className="space-y-1 text-sm">
+        {[...textbooks]
+          .sort((a, b) => {
+            const order = ["小学生", "中学生", "高校生"];
+            const ai = order.indexOf(a.description ?? "");
+            const bi = order.indexOf(b.description ?? "");
+            if (ai !== bi) return ai - bi;
+            if (a.subject !== b.subject) return a.subject.localeCompare(b.subject, "ja");
+            return a.title.localeCompare(b.title, "ja");
+          })
+          .map((t) => (
+            <li key={t.id} className="flex items-center justify-between">
+              <span>
+                {t.description && <span className="mr-1 text-xs text-[var(--color-ink-soft)]">[{t.description}]</span>}
+                [{t.subject}] {t.title} {t.grade_label && `(${t.grade_label})`}
+                {t.publisher && ` / ${t.publisher}`}
+              </span>
+              <button
+                disabled={isPending}
+                onClick={() => startTransition(() => deleteTextbookAction(t.id))}
+                className="text-xs text-[var(--color-ink-soft)] underline"
+              >
+                削除
+              </button>
+            </li>
+          ))}
         {textbooks.length === 0 && (
           <p className="text-sm text-[var(--color-ink-soft)]">まだ登録がありません</p>
         )}
