@@ -13,7 +13,7 @@ function refresh() {
 
 export async function createTextbookAction(input: {
   level: TextbookLevel;
-  subject: TextbookSubject;
+  subjects: TextbookSubject[];
   title: string;
   publisher?: string;
   description?: string;
