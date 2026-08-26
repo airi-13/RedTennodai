@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type { Textbook } from "@/lib/data/textbooks";
 import type { PricingRule } from "@/lib/data/pricing";
 import { createTextbookAction, deleteTextbookAction, upsertPricingRuleAction } from "./actions";
@@ -21,6 +21,15 @@ export function MaterialsView({
   );
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-[var(--color-ink-soft)]">
+      {label}
+      {children}
+    </label>
+  );
+}
+
 function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const [isPending, startTransition] = useTransition();
   const [subject, setSubject] = useState("");
@@ -28,6 +37,45 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const [publisher, setPublisher] = useState("");
   const [gradeLabel, setGradeLabel] = useState("");
   const [description, setDescription] = useState("");
+
+  // 絞り込み条件(区分[小学生/中学生/高校生]・科目・学年)
+  const [filterLevel, setFilterLevel] = useState("");
+  const [filterSubject, setFilterSubject] = useState("");
+  const [filterGrade, setFilterGrade] = useState("");
+
+  const levelOrder = ["小学生", "中学生", "高校生"];
+
+  const levelOptions = useMemo(() => {
+    const set = new Set(textbooks.map((t) => t.description).filter(Boolean) as string[]);
+    return levelOrder.filter((l) => set.has(l));
+  }, [textbooks]);
+
+  // 科目の選択肢は、区分の絞り込みがあればその区分内に存在する科目だけに絞る
+  const subjectOptions = useMemo(() => {
+    const scoped = filterLevel ? textbooks.filter((t) => t.description === filterLevel) : textbooks;
+    const set = new Set(scoped.map((t) => t.subject));
+    return [...set].sort((a, b) => a.localeCompare(b, "ja"));
+  }, [textbooks, filterLevel]);
+
+  // 学年の選択肢は、区分・科目の絞り込みがあればその範囲内に存在するものだけに絞る
+  const gradeOptions = useMemo(() => {
+    const scoped = textbooks.filter(
+      (t) =>
+        (!filterLevel || t.description === filterLevel) &&
+        (!filterSubject || t.subject === filterSubject)
+    );
+    const set = new Set(scoped.map((t) => t.grade_label).filter(Boolean) as string[]);
+    return [...set].sort((a, b) => a.localeCompare(b, "ja"));
+  }, [textbooks, filterLevel, filterSubject]);
+
+  const filteredTextbooks = useMemo(() => {
+    return textbooks.filter(
+      (t) =>
+        (!filterLevel || t.description === filterLevel) &&
+        (!filterSubject || t.subject === filterSubject) &&
+        (!filterGrade || t.grade_label === filterGrade)
+    );
+  }, [textbooks, filterLevel, filterSubject, filterGrade]);
 
   return (
     <section className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
@@ -58,12 +106,74 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
           追加
         </button>
       </div>
-            <ul className="space-y-1 text-sm">
-        {[...textbooks]
+      <div className="flex flex-wrap items-end gap-2 border-t border-[var(--color-border)] pt-3">
+        <Field label="区分で絞り込み">
+          <select
+            value={filterLevel}
+            onChange={(e) => {
+              setFilterLevel(e.target.value);
+              setFilterSubject("");
+              setFilterGrade("");
+            }}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          >
+            <option value="">すべて</option>
+            {levelOptions.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="科目で絞り込み">
+          <select
+            value={filterSubject}
+            onChange={(e) => {
+              setFilterSubject(e.target.value);
+              setFilterGrade("");
+            }}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          >
+            <option value="">すべて</option>
+            {subjectOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="学年で絞り込み">
+          <select
+            value={filterGrade}
+            onChange={(e) => setFilterGrade(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+          >
+            <option value="">すべて</option>
+            {gradeOptions.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {(filterLevel || filterSubject || filterGrade) && (
+          <button
+            onClick={() => {
+              setFilterLevel("");
+              setFilterSubject("");
+              setFilterGrade("");
+            }}
+            className="text-xs text-[var(--color-ink-soft)] underline"
+          >
+            絞り込みを解除
+          </button>
+        )}
+      </div>
+      <ul className="space-y-1 text-sm">
+        {[...filteredTextbooks]
           .sort((a, b) => {
-            const order = ["小学生", "中学生", "高校生"];
-            const ai = order.indexOf(a.description ?? "");
-            const bi = order.indexOf(b.description ?? "");
+            const ai = levelOrder.indexOf(a.description ?? "");
+            const bi = levelOrder.indexOf(b.description ?? "");
             if (ai !== bi) return ai - bi;
             if (a.subject !== b.subject) return a.subject.localeCompare(b.subject, "ja");
             return a.title.localeCompare(b.title, "ja");
@@ -86,6 +196,9 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
           ))}
         {textbooks.length === 0 && (
           <p className="text-sm text-[var(--color-ink-soft)]">まだ登録がありません</p>
+        )}
+        {textbooks.length > 0 && filteredTextbooks.length === 0 && (
+          <p className="text-sm text-[var(--color-ink-soft)]">該当するテキストがありません</p>
         )}
       </ul>
     </section>
