@@ -26,14 +26,14 @@ export default async function TextbooksPage() {
         <section key={level} className="mb-6">
           <h2 className="mb-3 text-base font-semibold text-neutral-700">{level}</h2>
           {SUBJECTS.map((subject) => {
-            const subjectBooks = books.filter((b) => b.subject === subject)
+            const subjectBooks = books.filter((b) => b.subjects.includes(subject))
             if (subjectBooks.length === 0) return null
             return (
               <div key={subject} className="mb-4">
                 <h3 className="mb-2 text-sm font-semibold text-neutral-600">{subject}</h3>
                 <ul className="space-y-2">
                   {subjectBooks.map((b) => (
-                    <li key={b.id} className="rounded-lg border p-3">
+                    <li key={`${subject}-${b.id}`} className="rounded-lg border p-3">
                       <div className="flex items-baseline justify-between">
                         <span className="font-medium">{b.title}</span>
                         <span className="text-xs text-neutral-400">{b.grade_label}</span>
