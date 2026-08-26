@@ -57,16 +57,28 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
     return [...set].sort((a, b) => a.localeCompare(b, "ja"));
   }, [textbooks, filterLevel]);
 
-  // 学年の選択肢は、区分・科目の絞り込みがあればその範囲内に存在するものだけに絞る
+   // 学年の選択肢は、区分・科目の絞り込みがあればその範囲内に存在するものだけに絞る。
+  // 「全学年」はどの学年を選んでも常に含まれる特別な値なので、プルダウンには出さない。
   const gradeOptions = useMemo(() => {
     const scoped = textbooks.filter(
       (t) =>
         (!filterLevel || t.description === filterLevel) &&
         (!filterSubject || t.subject === filterSubject)
     );
-    const set = new Set(scoped.map((t) => t.grade_label).filter(Boolean) as string[]);
+    const set = new Set(
+      scoped.map((t) => t.grade_label).filter((g): g is string => !!g && g !== "全学年")
+    );
     return [...set].sort((a, b) => a.localeCompare(b, "ja"));
   }, [textbooks, filterLevel, filterSubject]);
+
+  const filteredTextbooks = useMemo(() => {
+    return textbooks.filter(
+      (t) =>
+        (!filterLevel || t.description === filterLevel) &&
+        (!filterSubject || t.subject === filterSubject) &&
+        (!filterGrade || t.grade_label === filterGrade || t.grade_label === "全学年")
+    );
+  }, [textbooks, filterLevel, filterSubject, filterGrade]);
 
   const filteredTextbooks = useMemo(() => {
     return textbooks.filter(
