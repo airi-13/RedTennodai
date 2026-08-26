@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import type { Textbook, TextbookLevel, TextbookSubject } from "@/lib/data/textbooks";
-import { TEXTBOOK_ALL_GRADES, TEXTBOOK_GRADES, TEXTBOOK_LEVELS, TEXTBOOK_SUBJECTS } from "@/lib/data/textbooks";
+import { getTextbookGradeLabel, getTextbookSubjectLabel, TEXTBOOK_ALL_GRADES, TEXTBOOK_GRADES, TEXTBOOK_LEVELS, TEXTBOOK_SUBJECTS } from "@/lib/data/textbooks";
 import type { PricingRule } from "@/lib/data/pricing";
 import { createTextbookAction, deleteTextbookAction, upsertPricingRuleAction } from "./actions";
 
@@ -71,14 +71,14 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
         </Field>
         <Field label="学年">
           <select value={gradeLabel} onChange={(e) => setGradeLabel(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
-            {availableGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+            {availableGrades.map((g) => <option key={g} value={g}>{getTextbookGradeLabel(level, g)}</option>)}
           </select>
         </Field>
         <Field label="科目（複数選択可）">
           <div className="flex flex-wrap gap-1 rounded-md border border-[var(--color-border)] p-1">
             {TEXTBOOK_SUBJECTS.map((s) => (
               <button key={s} type="button" onClick={() => toggleSubject(s)} className={`rounded px-2 py-1 text-xs ${subjects.includes(s) ? "font-semibold" : "opacity-60"}`} aria-pressed={subjects.includes(s)}>
-                {s}
+                {getTextbookSubjectLabel(level, s)}
               </button>
             ))}
           </div>
@@ -97,12 +97,12 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
         </Field>
         <Field label="科目で絞り込み">
           <select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
-            <option value="">すべて</option>{TEXTBOOK_SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="">すべて</option>{TEXTBOOK_SUBJECTS.map((s) => <option key={s} value={s}>{getTextbookSubjectLabel((filterLevel || "中学生") as TextbookLevel, s)}</option>)}
           </select>
         </Field>
         <Field label="学年で絞り込み">
           <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
-            <option value="">すべて</option>{uniqueFilterGrades.map((g) => <option key={g} value={g}>{g}</option>)}
+            <option value="">すべて</option>{uniqueFilterGrades.map((g) => <option key={g} value={g}>{filterLevel ? getTextbookGradeLabel(filterLevel as TextbookLevel, g) : g}</option>)}
           </select>
         </Field>
         {(filterLevel || filterSubject || filterGrade) && <button onClick={() => { setFilterLevel(""); setFilterSubject(""); setFilterGrade(""); }} className="text-xs text-[var(--color-ink-soft)] underline">絞り込みを解除</button>}
@@ -111,7 +111,7 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
       <ul className="space-y-1 text-sm">
         {[...filteredTextbooks].sort((a, b) => `${a.level}${a.grade_label}${a.title}`.localeCompare(`${b.level}${b.grade_label}${b.title}`, "ja")).map((t) => (
           <li key={t.id} className="flex items-center justify-between">
-            <span>[{t.level}][{t.grade_label}][{t.subjects.join("・")}] {t.title}{t.publisher && ` / ${t.publisher}`}</span>
+            <span>[{t.level}][{getTextbookGradeLabel(t.level, t.grade_label)}][{t.subjects.map((s) => getTextbookSubjectLabel(t.level, s)).join("・")}] {t.title}{t.publisher && ` / ${t.publisher}`}</span>
             <button disabled={isPending} onClick={() => startTransition(() => deleteTextbookAction(t.id))} className="text-xs text-[var(--color-ink-soft)] underline">削除</button>
           </li>
         ))}
