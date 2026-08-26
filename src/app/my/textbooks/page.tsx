@@ -1,6 +1,7 @@
 // src/app/my/textbooks/page.tsx
 import Link from 'next/link'
-import { listTextbooks } from '@/lib/data/textbooks'
+import { getTextbookGradeLabel, getTextbookSubjectLabel, listTextbooks } from '@/lib/data/textbooks'
+import type { TextbookLevel } from '@/lib/data/textbooks'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,15 +29,16 @@ export default async function TextbooksPage() {
           {SUBJECTS.map((subject) => {
             const subjectBooks = books.filter((b) => b.subjects.includes(subject))
             if (subjectBooks.length === 0) return null
+            const subjectLabel = getTextbookSubjectLabel(level, subject)
             return (
               <div key={subject} className="mb-4">
-                <h3 className="mb-2 text-sm font-semibold text-neutral-600">{subject}</h3>
+                <h3 className="mb-2 text-sm font-semibold text-neutral-600">{subjectLabel}</h3>
                 <ul className="space-y-2">
                   {subjectBooks.map((b) => (
                     <li key={`${subject}-${b.id}`} className="rounded-lg border p-3">
                       <div className="flex items-baseline justify-between">
                         <span className="font-medium">{b.title}</span>
-                        <span className="text-xs text-neutral-400">{b.grade_label}</span>
+                        <span className="text-xs text-neutral-400">{getTextbookGradeLabel(level, b.grade_label)}</span>
                       </div>
                       {b.publisher && <div className="text-xs text-neutral-500">{b.publisher}</div>}
                       {b.description && <p className="mt-1 text-sm text-neutral-600">{b.description}</p>}
