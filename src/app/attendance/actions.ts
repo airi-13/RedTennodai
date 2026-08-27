@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { upsertAttendance, deleteAttendanceRecord } from "@/lib/data/attendance";
+import { upsertAttendance, deleteAttendanceRecord, updateMakeupDestinationStatus } from "@/lib/data/attendance";
 import { addSchedule } from "@/lib/data/schedules";
 import type { AttendanceStatus } from "@/lib/types";
 
@@ -13,7 +13,21 @@ export async function setAttendanceStatus(input: {
   status: AttendanceStatus;
   makeupDate?: string | null;
   makeupPeriodId?: number | null;
+  isTransferAddition?: boolean;
+  attendanceRecordId?: number | null;
 }) {
+  if (input.isTransferAddition) {
+    if (!input.attendanceRecordId) throw new Error("振替授業の元記録が見つかりません。");
+    // 振替授業は「欠席」のみ。さらに振替は作らない。
+    if (input.status !== "absent" && input.status !== "present") {
+      throw new Error("振替授業では欠席以外の変更はできません。");
+    }
+    await updateMakeupDestinationStatus(input.attendanceRecordId, input.status);
+    revalidatePath("/attendance");
+    revalidatePath("/my");
+    return;
+  }
+
   await upsertAttendance({
     student_id: input.studentId,
     date: input.date,
@@ -22,8 +36,10 @@ export async function setAttendanceStatus(input: {
     status: input.status,
     makeup_date: input.status === "makeup" ? input.makeupDate ?? null : null,
     makeup_period_id: input.status === "makeup" ? input.makeupPeriodId ?? null : null,
+    makeup_attendance_status: input.status === "makeup" ? null : null,
   });
   revalidatePath("/attendance");
+  revalidatePath("/my");
 }
 
 export async function clearAttendanceRecord(id: number) {
@@ -31,8 +47,6 @@ export async function clearAttendanceRecord(id: number) {
   revalidatePath("/attendance");
 }
 
-// その日だけの追加出席(振替の受け入れなど、定期スケジュールにない枠)を登録する。
-// 定期スケジュール自体は変えず、その日のattendance_recordsに1行作るだけ。
 export async function addOneOffAttendance(input: {
   studentId: number;
   date: string;
@@ -50,7 +64,6 @@ export async function addOneOffAttendance(input: {
   revalidatePath("/attendance");
 }
 
-// 生徒の定期スケジュールに1コマ追加する(生徒管理側からも使うが、動線上ここにも置く)
 export async function addStudentSchedule(input: {
   studentId: number;
   dayOfWeek: number;
