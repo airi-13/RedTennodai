@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { approveRequest, setRequestStatus, cancelApprovedRequest } from "@/lib/data/requests";
+import { setStudentRequestStatus } from "@/lib/data/student-requests";
 
 export async function approveRequestAction(id: number): Promise<{ reflected: boolean }> {
   const result = await approveRequest(id);
@@ -21,4 +22,14 @@ export async function cancelApprovedRequestAction(id: number) {
   revalidatePath("/requests");
   revalidatePath("/attendance");
   revalidatePath("/my");
+}
+
+export async function approveStudentRequestAction(id: number) {
+  await setStudentRequestStatus(id, "approved");
+  revalidatePath("/requests");
+}
+
+export async function rejectStudentRequestAction(id: number) {
+  await setStudentRequestStatus(id, "rejected");
+  revalidatePath("/requests");
 }
