@@ -1,6 +1,6 @@
 import { listTextbooks } from "@/lib/data/textbooks";
 import { listPricingRules } from "@/lib/data/pricing";
-import { MaterialsView } from "./MaterialsView";
+import { MaterialsView } from "./MaterialsViewClient";
 
 export const dynamic = "force-dynamic";
 
