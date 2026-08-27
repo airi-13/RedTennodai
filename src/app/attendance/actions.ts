@@ -18,14 +18,15 @@ export async function setAttendanceStatus(input: {
 }) {
   if (input.isTransferAddition) {
     if (!input.attendanceRecordId) throw new Error("振替授業の元記録が見つかりません。");
-    // 振替授業は「欠席」のみ。さらに振替は作らない。
-    if (input.status !== "absent" && input.status !== "present") {
-      throw new Error("振替授業では欠席以外の変更はできません。");
-    }
-    await updateMakeupDestinationStatus(input.attendanceRecordId, input.status);
+    if (input.status !== "absent") throw new Error("振替授業では欠席のみ登録できます。");
+    await updateMakeupDestinationStatus(input.attendanceRecordId, "absent");
     revalidatePath("/attendance");
     revalidatePath("/my");
     return;
+  }
+
+  if (input.status === "makeup" && (!input.makeupDate || !input.makeupPeriodId)) {
+    throw new Error("振替日と振替コマを指定してから振替を登録してください。");
   }
 
   await upsertAttendance({
@@ -54,13 +55,7 @@ export async function addOneOffAttendance(input: {
   subjectId: number;
   status: AttendanceStatus;
 }) {
-  await upsertAttendance({
-    student_id: input.studentId,
-    date: input.date,
-    period_id: input.periodId,
-    subject_id: input.subjectId,
-    status: input.status,
-  });
+  await upsertAttendance({ student_id: input.studentId, date: input.date, period_id: input.periodId, subject_id: input.subjectId, status: input.status });
   revalidatePath("/attendance");
 }
 
@@ -70,12 +65,7 @@ export async function addStudentSchedule(input: {
   periodId: number;
   subjectId: number;
 }) {
-  await addSchedule({
-    student_id: input.studentId,
-    day_of_week: input.dayOfWeek,
-    period_id: input.periodId,
-    subject_id: input.subjectId,
-  });
+  await addSchedule({ student_id: input.studentId, day_of_week: input.dayOfWeek, period_id: input.periodId, subject_id: input.subjectId });
   revalidatePath("/attendance");
   revalidatePath("/students");
 }
