@@ -21,10 +21,9 @@ export type CalendarDayItem =
       periodLabel: string;
       status: LessonDisplayStatus;
       attendanceRecordId: number | null;
-      // status='makeup'(振替元)のとき、振替先の日付
+      makeupAttendanceStatus?: AttendanceStatus | null;
       transferToDate?: string | null;
       transferToPeriodId?: number | null;
-      // status='makeup_added'(振替先)のとき、元の日付・コマ
       transferFromDate?: string | null;
       transferFromPeriodLabel?: string | null;
     }
@@ -32,17 +31,16 @@ export type CalendarDayItem =
   | { type: "school_event"; title: string; note: string | null };
 
 export type CalendarDay = {
-  date: string; // YYYY-MM-DD
+  date: string;
   status: "closed" | "open";
   items: CalendarDayItem[];
 };
 
-// 生徒本人のカレンダー: 自分の授業(出欠・振替反映込み)+塾のお知らせ+自分の学校の行事
 export async function buildStudentCalendar(params: {
   studentId: number;
   schoolId: string | null;
   year: number;
-  month: number; // 1-12
+  month: number;
 }): Promise<CalendarDay[]> {
   const { studentId, schoolId, year, month } = params;
 
@@ -59,12 +57,9 @@ export async function buildStudentCalendar(params: {
 
   const periodById = new Map(periods.map((p) => [p.id, p.name]));
   const subjectById = new Map(subjects.map((s) => [s.id, s.name]));
-
-  // 元の日付+コマ をキーにした出欠記録マップ(定期予定の上書き用)
   const recordByDateAndPeriod = new Map(
     records.byDate.map((r) => [`${r.date}:${r.period_id}`, r])
   );
-  // 振替先の日付ごとにグルーピング(その日に追加表示するため)
   const transferInByDate = new Map<string, typeof records.byMakeupDate>();
   for (const r of records.byMakeupDate) {
     if (!r.makeup_date) continue;
@@ -81,7 +76,6 @@ export async function buildStudentCalendar(params: {
     const iso = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     const status = resolveDayStatus(date, closures);
     const weekday = date.getDay();
-
     const items: CalendarDayItem[] = [];
 
     for (const s of schedules.filter((ws) => ws.day_of_week === weekday)) {
@@ -92,6 +86,7 @@ export async function buildStudentCalendar(params: {
         periodLabel: periodById.get(s.period_id) ?? "",
         status: record ? (record.status as AttendanceStatus) : "scheduled",
         attendanceRecordId: record ? record.id : null,
+        makeupAttendanceStatus: record?.status === "makeup" ? (record.makeup_attendance_status as AttendanceStatus | null) : null,
         transferToDate: record?.status === "makeup" ? record.makeup_date : null,
         transferToPeriodId: record?.status === "makeup" ? record.makeup_period_id : null,
       });
@@ -104,20 +99,15 @@ export async function buildStudentCalendar(params: {
         periodLabel: periodById.get(r.makeup_period_id ?? -1) ?? "(コマ未定)",
         status: "makeup_added",
         attendanceRecordId: r.id,
+        makeupAttendanceStatus: (r.makeup_attendance_status as AttendanceStatus | null) ?? null,
         transferFromDate: r.date,
         transferFromPeriodLabel: periodById.get(r.period_id) ?? "",
       });
     }
 
     for (const a of announcements.filter((a) => a.event_date === iso)) {
-      items.push({
-        type: "announcement",
-        title: a.title,
-        timeRange: a.time_range,
-        note: a.note,
-      });
+      items.push({ type: "announcement", title: a.title, timeRange: a.time_range, note: a.note });
     }
-
     for (const e of schoolEvents.filter((e) => e.event_date === iso)) {
       items.push({ type: "school_event", title: e.title, note: e.note });
     }
@@ -139,7 +129,6 @@ export type AdminCalendarDay = {
   items: AdminCalendarDayItem[];
 };
 
-// 管理者トップページ用: 全学校の行事+塾のお知らせ+自分のTODOをまとめたカレンダー
 export async function buildAdminCalendar(
   year: number,
   month: number
