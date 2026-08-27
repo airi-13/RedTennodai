@@ -29,7 +29,7 @@ function itemStyle(item: CalendarDayItem) {
     case "no_show": return { background: "#B9B9B9", color: "white" };
     case "makeup_added": return { background: "var(--color-makeup)", color: "white" };
     case "late": return { background: "var(--color-late)", color: "white" };
-    default: return { background: "white", color: "var(--color-ink)", border: "1px solid var(--color-border)" };
+    default: return { background: "var(--color-present)", color: "white" };
   }
 }
 
@@ -84,10 +84,10 @@ export function CalendarGrid({ year, month, days, periods }: {
           <div key={day.date} className="min-h-[72px] rounded-md border border-[var(--color-border)] bg-white p-1 text-left" style={day.status === "closed" ? { background: "var(--color-accent-soft)" } : undefined}>
             <div className="text-[10px] text-[var(--color-ink-soft)]">{Number(day.date.slice(-2))}{day.status === "closed" && <span className="ml-1 font-bold" style={{ color: "var(--color-accent-dark)" }}>休</span>}</div>
             <div className="mt-0.5 space-y-0.5">
-              {day.items.map((item, i) => item.type === "lesson" ? (
-                <button key={i} onClick={() => setSelected({ date: day.date, item })} className="block w-full truncate rounded px-1 text-left text-[10px]" style={itemStyle(item)} title={lessonLabel(item)}>{lessonLabel(item)}</button>
-              ) : (
-                <button key={i} onClick={() => setSelected({ date: day.date, item })} className="block w-full truncate rounded px-1 text-left text-[10px]" style={itemStyle(item)} title={item.title}>{item.title}</button>
+              {day.items.map((item, i) => (
+                <button key={i} onClick={() => setSelected({ date: day.date, item })} className="block w-full truncate rounded px-1 text-left text-[10px]" style={itemStyle(item)} title={item.type === "lesson" ? lessonLabel(item) : item.title}>
+                  {item.type === "lesson" ? lessonLabel(item) : item.title}
+                </button>
               ))}
             </div>
           </div>
