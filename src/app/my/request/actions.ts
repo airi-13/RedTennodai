@@ -33,17 +33,16 @@ export async function submitAdditionalRequestAction(
     details.quantity = String(formData.get("quantity") ?? "1").trim();
     if (!details.textbook_id) return { error: "購入するテキストを選択してください" };
     const quantity = Number(details.quantity);
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
-      return { error: "冊数は1〜10冊で指定してください" };
-    }
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) return { error: "冊数は1〜10冊で指定してください" };
+    const { data: textbook } = await supabase.from("textbooks").select("title").eq("id", Number(details.textbook_id)).maybeSingle();
+    if (!textbook) return { error: "選択したテキストが見つかりません" };
+    details.textbook_title = textbook.title;
   }
 
   if (requestType === "interview") {
     details.preferred_date = String(formData.get("preferredDate") ?? "").trim();
     details.preferred_time = String(formData.get("preferredTime") ?? "").trim();
-    if (!details.preferred_date || !details.preferred_time) {
-      return { error: "希望日と希望時間帯を入力してください" };
-    }
+    if (!details.preferred_date || !details.preferred_time) return { error: "希望日と希望時間帯を入力してください" };
   }
 
   if (requestType === "lesson_count_change") {
@@ -55,9 +54,18 @@ export async function submitAdditionalRequestAction(
     details.current_schedule_id = String(formData.get("currentScheduleId") ?? "").trim();
     details.desired_day_of_week = String(formData.get("desiredDayOfWeek") ?? "").trim();
     details.desired_period_id = String(formData.get("desiredPeriodId") ?? "").trim();
-    if (!details.current_schedule_id || !details.desired_day_of_week || !details.desired_period_id) {
-      return { error: "変更元と変更後の曜日・コマを指定してください" };
-    }
+    if (!details.current_schedule_id || !details.desired_day_of_week || !details.desired_period_id) return { error: "変更元と変更後の曜日・コマを指定してください" };
+
+    const { data: currentSchedule } = await supabase
+      .from("student_schedules")
+      .select("day_of_week, period_id, periods(name)")
+      .eq("id", Number(details.current_schedule_id))
+      .eq("student_id", student.id)
+      .maybeSingle();
+    if (!currentSchedule) return { error: "変更元の固定コマが見つかりません" };
+    details.current_day_of_week = String(currentSchedule.day_of_week);
+    details.current_period_id = String(currentSchedule.period_id);
+    details.current_period_name = (currentSchedule as any).periods?.name ?? "";
   }
 
   const { error } = await supabase.from("student_requests").insert({
