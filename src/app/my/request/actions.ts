@@ -20,12 +20,12 @@ export async function submitRequestAction(
     .maybeSingle();
   if (!student) return { error: "生徒情報が見つかりません" };
 
-  const requestType = String(formData.get("requestType") ?? "absence");
-  const targetDate = String(formData.get("targetDate") ?? "");
+  const requestType = String(formData.get("requestType") ?? "").trim();
+  const targetDate = String(formData.get("targetDate") ?? "").trim();
   const targetPeriodIdRaw = formData.get("targetPeriodId");
   const targetPeriodId = targetPeriodIdRaw ? Number(targetPeriodIdRaw) : null;
-  const reason = String(formData.get("reason") ?? "");
-  const makeupDate = String(formData.get("makeupDate") ?? "") || null;
+  const reason = String(formData.get("reason") ?? "").trim();
+  const makeupDate = String(formData.get("makeupDate") ?? "").trim() || null;
   const makeupPeriodIdRaw = formData.get("makeupPeriodId");
   const makeupPeriodId = makeupPeriodIdRaw ? Number(makeupPeriodIdRaw) : null;
 
