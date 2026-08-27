@@ -1,6 +1,7 @@
 # RED教室 出欠管理システム (v1)
 
 Next.js + Supabase製。DBスキーマの詳細は別リポジトリ/ファイルの `database-schema.md` / `schema.sql` を参照(このアプリのソースには含めていません)。
+管理者PASS：S0x6BHP1oqmx9fA9
 
 ## 構成
 
