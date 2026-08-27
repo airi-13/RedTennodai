@@ -11,10 +11,13 @@
   --color-accent-soft:#F5D9CE;
   --color-accent-dark:#A22E11;
 
-  --color-present:#6E9C8C;
-  --color-absent:#A22E11;
+  /* Calendar status colors */
+  --color-present:#DCEEFF;
+  --color-absent:#FFE58A;
   --color-late:#C9932F;
   --color-makeup:#4C7FA3;
+  --color-juku:#E05A47;
+  --color-school:#DCEFD8;
 }
 
 body {
