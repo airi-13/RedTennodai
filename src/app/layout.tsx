@@ -18,8 +18,8 @@ export default function RootLayout({
     <html lang="ja">
       <body>
         <div className="min-h-screen">
-          <header className="border-b-2 border-[var(--color-ink)] bg-[var(--color-surface)]">
-            <div className="mx-auto flex max-w-4xl items-center gap-6 px-4 py-3">
+          <header className="border-b border-gray-200 bg-white">
+            <div className="mx-auto flex max-w-4xl items-center gap-6 bg-white px-4 py-3">
               <Link href="/" className="shrink-0">
                 <Image src="/logo.png" alt="自立学習RED" width={140} height={40} priority />
               </Link>
