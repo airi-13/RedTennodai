@@ -101,7 +101,7 @@ export function CalendarGrid({ year, month, days, periods }: {
 }
 
 function LegendDot({ color, label }: { color: string; label: string }) {
-  return <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full border border-[var(--color-border)]" style={{ background: color }} />○ {label}</span>;
+  return <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full border border-[var(--color-border)]" style={{ background: color }} />{label}</span>;
 }
 
 function LessonModal({ selected, periods, onClose }: { selected: { date: string; item: Extract<CalendarDayItem, { type: "lesson" }> }; periods: { id: number; name: string; start_time: string | null }[]; onClose: () => void }) {
@@ -170,11 +170,10 @@ function NewRegistrationForm({ date, periodId, periods }: { date: string; period
   return <form action={formAction} className="space-y-3">
     <input type="hidden" name="targetDate" value={date} /><input type="hidden" name="targetPeriodId" value={periodId} />
     <div className="flex gap-4 text-sm"><label className="flex items-center gap-1"><input type="radio" name="requestType" value="absence" checked={requestType === "absence"} onChange={() => setRequestType("absence")} />欠席</label><label className="flex items-center gap-1"><input type="radio" name="requestType" value="makeup" checked={requestType === "makeup"} onChange={() => setRequestType("makeup")} />振替</label></div>
-    {requestType === "makeup" && <><div className="space-y-2"><label className="block text-xs text-[var(--color-ink-soft)]">振替授業</label><input type="date" name="makeupDate" value={makeupDate} onChange={(e) => setMakeupDate(e.target.value)} min={today} max={maxMakeup} required className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" /><select name="makeupPeriodId" value={makeupPeriodId} onChange={(e) => setMakeupPeriodId(e.target.value ? Number(e.target.value) : "")} required className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"><option value="">コマを選択</option>{availablePeriods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div><p className="text-[10px] text-[var(--color-ink-soft)]">振替授業は現在時刻以降、元授業日の4週間後23:59まで選択できます。</p></>}
+    {requestType === "makeup" && <><div className="space-y-2"><label className="block text-xs text-[var(--color-ink-soft)]">振替授業</label><input type="date" name="makeupDate" value={makeupDate} onChange={(e) => setMakeupDate(e.target.value)} min={today} max={maxMakeup} required className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" /><select name="makeupPeriodId" value={makeupPeriodId} onChange={(e) => setMakeupPeriodId(e.target.value ? Number(e.target.value) : "")} required className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"><option value="">コマを選択</option>{availablePeriods.map((p) => <option key={p.id} value={p.id}>{p.name} {p.start_time?.slice(0, 5)}</option>)}</select></div></>}
     <textarea name="reason" rows={2} placeholder="理由・連絡事項" className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />
     {state?.error && <p className="text-sm" style={{ color: "var(--color-absent)" }}>{state.error}</p>}
-    <button type="submit" disabled={isPending || (requestType === "makeup" && (!makeupDate || makeupPeriodId === ""))} className="w-full rounded-md py-2 text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--color-accent)" }}>申請</button>
-    {requestType === "absence" && <p className="text-[10px] text-[var(--color-ink-soft)]">欠席は授業開始5分前まで申請できます。</p>}
-    {requestType === "makeup" && <p className="text-[10px] text-[var(--color-ink-soft)]">振替の元授業は、現在時刻から5分以上先の授業のみ選択できます。</p>}
+    <button type="submit" disabled={isPending || periodId === "" || (requestType === "makeup" && (!makeupDate || makeupPeriodId === ""))} className="w-full rounded-md py-2 text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--color-accent)" }}>申請</button>
+    <p className="text-[10px] text-[var(--color-ink-soft)]">授業開始5分前まで申請できます。</p>
   </form>;
 }
