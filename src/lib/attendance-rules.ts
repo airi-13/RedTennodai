@@ -39,13 +39,11 @@ export function isValidMakeupDestinationSlot(
   const [y1, m1, d1] = targetDate.split("-").map(Number);
   const [y2, m2, d2] = makeupDate.split("-").map(Number);
   const [h, m] = makeupPeriodStartTime.split(":").map(Number);
-  const minimum = now.getTime();
   const makeup = new Date(y2, m2 - 1, d2, h, m).getTime();
   const maxDate = new Date(y1, m1 - 1, d1 + 28, 23, 59, 59, 999).getTime();
-  return makeup >= minimum && makeup <= maxDate;
+  return makeup >= now.getTime() && makeup <= maxDate;
 }
 
-// 振替先の日付だけを判定する(表示側でも利用)。
 export function isValidMakeupDateRange(targetDate: string, makeupDate: string): boolean {
   const [y1, m1, d1] = targetDate.split("-").map(Number);
   const [y2, m2, d2] = makeupDate.split("-").map(Number);
@@ -54,3 +52,6 @@ export function isValidMakeupDateRange(targetDate: string, makeupDate: string): 
   const diffDays = (makeup.getTime() - target.getTime()) / (1000 * 60 * 60 * 24);
   return diffDays > 0 && diffDays <= 28;
 }
+
+// 振替授業は再振替不可。欠席申請のUIではこの注意文を表示する。
+export const MAKEUP_LESSON_NOTICE = "※振替授業のため、このコマの振替はできません";
