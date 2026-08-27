@@ -30,6 +30,9 @@ export async function submitRequestAction(
   const makeupPeriodId = makeupPeriodIdRaw ? Number(makeupPeriodIdRaw) : null;
 
   if (!targetDate) return { error: "対象日を入力してください" };
+  if (requestType !== "absence" && requestType !== "makeup") {
+    return { error: "申請内容が正しくありません" };
+  }
 
   const { error } = await supabase.from("attendance_requests").insert({
     student_id: student.id,
@@ -43,5 +46,5 @@ export async function submitRequestAction(
 
   if (error) return { error: `送信に失敗しました (${error.message})` };
 
-  redirect("/my?submitted=1");
+  redirect("/my/request/complete");
 }
