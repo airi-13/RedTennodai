@@ -25,13 +25,19 @@ export async function submitRequestAction(
   const targetPeriodIdRaw = formData.get("targetPeriodId");
   const targetPeriodId = targetPeriodIdRaw ? Number(targetPeriodIdRaw) : null;
   const reason = String(formData.get("reason") ?? "").trim();
-  const makeupDate = String(formData.get("makeupDate") ?? "").trim() || null;
+  const makeupDateValue = String(formData.get("makeupDate") ?? "").trim();
+  const makeupDate = makeupDateValue || null;
   const makeupPeriodIdRaw = formData.get("makeupPeriodId");
   const makeupPeriodId = makeupPeriodIdRaw ? Number(makeupPeriodIdRaw) : null;
 
-  if (!targetDate) return { error: "対象日を入力してください" };
   if (requestType !== "absence" && requestType !== "makeup") {
     return { error: "申請内容が正しくありません" };
+  }
+  if (!targetDate) return { error: "対象日を入力してください" };
+  if (!targetPeriodId) return { error: "対象のコマを選択してください" };
+  if (requestType === "makeup") {
+    if (!makeupDate) return { error: "振替希望日を入力してください" };
+    if (!makeupPeriodId) return { error: "振替希望のコマを選択してください" };
   }
 
   const { error } = await supabase.from("attendance_requests").insert({
