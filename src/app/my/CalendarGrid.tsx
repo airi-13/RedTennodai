@@ -61,7 +61,7 @@ function formatDateTime(date: string, periodStartTime: string | null) {
   const [y, m, d] = date.split("-").map(Number);
   const weekday = new Date(y, m - 1, d).getDay();
   const weekdayLabel = ["日", "月", "火", "水", "木", "金", "土"][weekday];
-  return `${m}/${d}(${weekdayLabel}) ${periodStartTime.slice(0, 5)}`;
+  return `${m}/${d} ${weekdayLabel} ${periodStartTime.slice(0, 5)}`;
 }
 
 type SelectedLesson = {
@@ -142,7 +142,6 @@ function LessonModal({ selected, periods, onClose }: {
   if (item.status === "makeup") {
     return (
       <Overlay onClose={onClose}>
-        <ModalHeader date={date} item={item} onClose={onClose} />
         <p className="text-sm font-medium text-[var(--color-ink)]">
           {formatDateTime(item.transferToDate ?? date, periods.find((p) => p.id === item.transferToPeriodId)?.start_time ?? null)}〜に振替
         </p>
@@ -153,7 +152,6 @@ function LessonModal({ selected, periods, onClose }: {
   if (item.status === "makeup_added") {
     return (
       <Overlay onClose={onClose}>
-        <ModalHeader date={date} item={item} onClose={onClose} />
         <p className="text-sm font-medium text-[var(--color-ink)]">
           {formatDateTime(item.transferFromDate ?? date, periods.find((p) => p.name === item.transferFromPeriodLabel)?.start_time ?? null)}の振替
         </p>
