@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import type { CalendarDay, CalendarDayItem } from "@/lib/data/calendar";
 import { submitRequestAction } from "@/app/my/request/actions";
+import { MAKEUP_LESSON_NOTICE } from "@/lib/attendance-rules";
 
 function lessonLabel(item: Extract<CalendarDayItem, { type: "lesson" }>) {
   const base = `${item.periodLabel} ${item.subject}`;
@@ -18,9 +19,10 @@ function lessonLabel(item: Extract<CalendarDayItem, { type: "lesson" }>) {
 }
 
 function itemStyle(item: CalendarDayItem) {
-  if (item.type === "announcement") return { background: "#FFF3CD" };
-  if (item.type === "school_event") return { background: "#E3EEFB" };
+  if (item.type === "announcement") return { background: "#FFF3CD", color: "var(--color-ink)" };
+  if (item.type === "school_event") return { background: "#E3EEFB", color: "var(--color-ink)" };
   if (item.type === "lesson" && item.status === "makeup_added" && item.makeupAttendanceStatus === "absent") return { background: "var(--color-absent)", color: "white" };
+  if (item.type !== "lesson") return { background: "white", color: "var(--color-ink)" };
   switch (item.status) {
     case "absent": return { background: "var(--color-absent)", color: "white" };
     case "makeup":
@@ -46,7 +48,7 @@ function formatDateTime(date: string, start: string | null) {
   return `${m}/${d} ${start ? start.slice(0, 5) : ""}〜`;
 }
 
-type SelectedLesson = { date: string; item: Extract<CalendarDayItem, { type: "lesson" }> };
+type SelectedItem = { date: string; item: CalendarDayItem };
 
 export function CalendarGrid({ year, month, days, periods }: {
   year: number;
@@ -54,7 +56,7 @@ export function CalendarGrid({ year, month, days, periods }: {
   days: CalendarDay[];
   periods: { id: number; name: string; start_time: string | null }[];
 }) {
-  const [selected, setSelected] = useState<SelectedLesson | null>(null);
+  const [selected, setSelected] = useState<SelectedItem | null>(null);
   const firstWeekday = new Date(year, month - 1, 1).getDay();
   const leadingBlanks = Array.from({ length: firstWeekday });
   const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
@@ -68,9 +70,13 @@ export function CalendarGrid({ year, month, days, periods }: {
         <Link href={`/my?y=${next.y}&m=${next.m}`} className="rounded-full border border-[var(--color-ink)] px-2 py-0.5 text-sm">→</Link>
       </div>
       <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-ink-soft)]">
-        <span>○ 通常授業</span><span>○ 欠席</span><span>○ 振替授業</span><span>○ 学校行事</span><span>○ 塾のお知らせ</span>
+        <LegendDot color="var(--color-present)" label="通常授業" />
+        <LegendDot color="var(--color-absent)" label="欠席" />
+        <LegendDot color="var(--color-makeup)" label="振替授業" />
+        <LegendDot color="#E3EEFB" label="学校行事" />
+        <LegendDot color="#FFF3CD" label="塾のお知らせ" />
       </div>
-      <p className="mb-2 text-[10px] text-[var(--color-ink-soft)]">授業をタップすると詳細と申請ができます。</p>
+      <p className="mb-2 text-[10px] text-[var(--color-ink-soft)]">授業・学校行事・塾のお知らせをタップすると詳細を表示できます。</p>
       <div className="grid grid-cols-7 gap-1 text-center text-xs text-[var(--color-ink-soft)]">
         {["日", "月", "火", "水", "木", "金", "土"].map((d) => <div key={d}>{d}</div>)}
         {leadingBlanks.map((_, i) => <div key={`blank-${i}`} />)}
@@ -80,17 +86,25 @@ export function CalendarGrid({ year, month, days, periods }: {
             <div className="mt-0.5 space-y-0.5">
               {day.items.map((item, i) => item.type === "lesson" ? (
                 <button key={i} onClick={() => setSelected({ date: day.date, item })} className="block w-full truncate rounded px-1 text-left text-[10px]" style={itemStyle(item)} title={lessonLabel(item)}>{lessonLabel(item)}</button>
-              ) : <div key={i} className="truncate rounded px-1 text-[10px]" style={itemStyle(item)} title={item.title}>{item.title}</div>)}
+              ) : (
+                <button key={i} onClick={() => setSelected({ date: day.date, item })} className="block w-full truncate rounded px-1 text-left text-[10px]" style={itemStyle(item)} title={item.title}>{item.title}</button>
+              ))}
             </div>
           </div>
         ))}
       </div>
-      {selected && <LessonModal selected={selected} periods={periods} onClose={() => setSelected(null)} />}
+      {selected?.item.type === "lesson" && <LessonModal selected={{ date: selected.date, item: selected.item }} periods={periods} onClose={() => setSelected(null)} />}
+      {selected?.item.type === "announcement" && <EventModal title="塾のお知らせ" item={selected.item} onClose={() => setSelected(null)} />}
+      {selected?.item.type === "school_event" && <EventModal title="学校行事" item={selected.item} onClose={() => setSelected(null)} />}
     </div>
   );
 }
 
-function LessonModal({ selected, periods, onClose }: { selected: SelectedLesson; periods: { id: number; name: string; start_time: string | null }[]; onClose: () => void }) {
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full border border-[var(--color-border)]" style={{ background: color }} />○ {label}</span>;
+}
+
+function LessonModal({ selected, periods, onClose }: { selected: { date: string; item: Extract<CalendarDayItem, { type: "lesson" }> }; periods: { id: number; name: string; start_time: string | null }[]; onClose: () => void }) {
   const { date, item } = selected;
   const period = periods.find((p) => p.name === item.periodLabel);
   if (item.status === "makeup") {
@@ -104,7 +118,7 @@ function LessonModal({ selected, periods, onClose }: { selected: SelectedLesson;
   return <Overlay onClose={onClose}><ModalHeader date={date} item={item} onClose={onClose} /><NewRegistrationForm date={date} periodId={period?.id ?? ""} periods={periods} /></Overlay>;
 }
 
-function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinationTime, alreadyAbsent, onClose }: { selected: SelectedLesson; targetPeriodId: number | ""; sourceTime: string; destinationTime: string; alreadyAbsent: boolean; onClose: () => void }) {
+function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinationTime, alreadyAbsent, onClose }: { selected: { date: string; item: Extract<CalendarDayItem, { type: "lesson" }> }; targetPeriodId: number | ""; sourceTime: string; destinationTime: string; alreadyAbsent: boolean; onClose: () => void }) {
   const [state, formAction, isPending] = useActionState(submitRequestAction, undefined);
   return <Overlay onClose={onClose}>
     <div className="space-y-2"><p className="font-bold">振替授業</p><p className="text-sm">{sourceTime}</p><p className="pl-8 text-sm">↓</p><p className="text-sm">{destinationTime}</p></div>
@@ -116,8 +130,19 @@ function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinat
       {state?.error && <p className="text-sm" style={{ color: "var(--color-absent)" }}>{state.error}</p>}
       <button type="submit" disabled={isPending || targetPeriodId === ""} className="w-full rounded-md py-2 text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--color-absent)" }}>欠席</button>
       <p className="text-[10px] text-[var(--color-ink-soft)]">授業開始5分前まで申請できます。</p>
+      <p className="text-[10px] text-[var(--color-ink-soft)]">{MAKEUP_LESSON_NOTICE}</p>
     </form>}
     {alreadyAbsent && <p className="text-sm font-medium" style={{ color: "var(--color-absent)" }}>欠席</p>}
+  </Overlay>;
+}
+
+function EventModal({ title, item, onClose }: { title: string; item: Extract<CalendarDayItem, { type: "announcement" | "school_event" }>; onClose: () => void }) {
+  return <Overlay onClose={onClose}>
+    <div className="flex items-start justify-between"><div><p className="font-display font-bold">{title}</p><p className="mt-1 text-sm">{item.title}</p></div><button onClick={onClose} className="text-[var(--color-ink-soft)]">✕</button></div>
+    {item.type === "announcement" && item.timeRange && <p className="text-sm text-[var(--color-ink-soft)]">時間：{item.timeRange}</p>}
+    {item.note && <div className="rounded-md bg-[var(--color-bg)] p-3 text-sm whitespace-pre-wrap">{item.note}</div>}
+    {!item.note && item.type === "school_event" && <p className="text-sm text-[var(--color-ink-soft)]">詳細はありません。</p>}
+    {!item.note && item.type === "announcement" && !item.timeRange && <p className="text-sm text-[var(--color-ink-soft)]">詳細はありません。</p>}
   </Overlay>;
 }
 
