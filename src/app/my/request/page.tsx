@@ -2,14 +2,12 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-// 欠席・振替の登録は、カレンダー上で該当授業をタップして行う方式に統一した
-// (対象コマの取り違えを防ぎ、開始5分前の締切判定も正しく行うため)。
 export default function MyRequestPage() {
   return (
     <div className="max-w-sm space-y-4">
-      <h1 className="text-lg font-semibold">欠席・振替の登録</h1>
+      <h1 className="text-lg font-semibold">欠席・振替の申請</h1>
       <p className="text-sm text-[var(--color-ink-soft)]">
-        欠席・振替の登録は、カレンダー上で該当する授業をタップして行ってください。
+        欠席・振替は、カレンダー上で該当する授業をタップして申請してください。
       </p>
       <Link
         href="/my"
@@ -18,11 +16,6 @@ export default function MyRequestPage() {
       >
         カレンダーを開く
       </Link>
-      <p className="pt-2 text-sm">
-        <Link href="/my/request/makeup" className="text-[var(--color-ink-soft)] underline">
-          振替日が未登録の授業をまとめて確認する →
-        </Link>
-      </p>
     </div>
   );
 }
