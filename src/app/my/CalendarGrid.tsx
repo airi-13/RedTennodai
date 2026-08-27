@@ -15,9 +15,9 @@ function lessonLabel(item: Extract<CalendarDayItem, { type: "lesson" }>) {
     case "late":
       return `${base}(遅刻)`;
     case "makeup":
-      return item.transferToDate ? `${base}(振替→${item.transferToDate})` : `${base}(振替)`;
+      return `${base}(振替→${item.transferToDate})`;
     case "makeup_added":
-      return `${base}(振替追加・元${item.transferFromDate ?? ""} ${item.transferFromPeriodLabel ?? ""})`;
+      return `${base}(振替授業)`;
     default:
       return base;
   }
@@ -56,6 +56,14 @@ function todayString() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+function formatDateTime(date: string, periodStartTime: string | null) {
+  if (!periodStartTime) return date;
+  const [y, m, d] = date.split("-").map(Number);
+  const weekday = new Date(y, m - 1, d).getDay();
+  const weekdayLabel = ["日", "月", "火", "水", "木", "金", "土"][weekday];
+  return `${m}/${d}(${weekdayLabel}) ${periodStartTime.slice(0, 5)}`;
+}
+
 type SelectedLesson = {
   date: string;
   item: Extract<CalendarDayItem, { type: "lesson" }>;
@@ -89,8 +97,7 @@ export function CalendarGrid({
       <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-ink-soft)]">
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full border border-[var(--color-border)]" style={{ background: "white" }} />通常授業</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-absent)" }} />欠席</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#B9B9B9" }} />振替元・無断欠席</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-makeup)" }} />振替先</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-makeup)" }} />振替授業</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#E3EEFB" }} />学校行事</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#FFF3CD" }} />塾のお知らせ</span>
       </div>
@@ -130,12 +137,26 @@ function LessonModal({ selected, periods, onClose }: {
 }) {
   const { date, item } = selected;
   const periodId = periods.find((p) => p.name === item.periodLabel)?.id ?? "";
+  const period = periods.find((p) => p.id === periodId);
+
+  if (item.status === "makeup") {
+    return (
+      <Overlay onClose={onClose}>
+        <ModalHeader date={date} item={item} onClose={onClose} />
+        <p className="text-sm font-medium text-[var(--color-ink)]">
+          {formatDateTime(item.transferToDate ?? date, periods.find((p) => p.id === item.transferToPeriodId)?.start_time ?? null)}〜に振替
+        </p>
+      </Overlay>
+    );
+  }
 
   if (item.status === "makeup_added") {
     return (
       <Overlay onClose={onClose}>
         <ModalHeader date={date} item={item} onClose={onClose} />
-        <p className="text-sm text-[var(--color-ink-soft)]">このコマは振替先として追加されたコマです。出欠は「出欠入力」画面で管理されます。</p>
+        <p className="text-sm font-medium text-[var(--color-ink)]">
+          {formatDateTime(item.transferFromDate ?? date, periods.find((p) => p.name === item.transferFromPeriodLabel)?.start_time ?? null)}の振替
+        </p>
       </Overlay>
     );
   }
@@ -143,7 +164,7 @@ function LessonModal({ selected, periods, onClose }: {
   return (
     <Overlay onClose={onClose}>
       <ModalHeader date={date} item={item} onClose={onClose} />
-      <NewRegistrationForm date={date} periodId={periodId} periods={periods} />
+      <NewRegistrationForm date={date} periodId={periodId} periods={periods} periodStartTime={period?.start_time ?? null} />
     </Overlay>
   );
 }
@@ -172,10 +193,11 @@ function ModalHeader({ date, item, onClose }: {
   );
 }
 
-function NewRegistrationForm({ date, periodId, periods }: {
+function NewRegistrationForm({ date, periodId, periods, periodStartTime }: {
   date: string;
   periodId: number | "";
   periods: { id: number; name: string; start_time: string | null }[];
+  periodStartTime: string | null;
 }) {
   const [requestType, setRequestType] = useState<"absence" | "makeup">("absence");
   const [makeupDate, setMakeupDate] = useState("");
@@ -219,11 +241,11 @@ function NewRegistrationForm({ date, periodId, periods }: {
               {availablePeriods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-          <p className="text-[10px] text-[var(--color-ink-soft)]">振替先は現在時刻以降、元授業日の4週間後23:59まで選択できます。</p>
+          <p className="text-[10px] text-[var(--color-ink-soft)]">振替授業は現在時刻以降、元授業日の4週間後23:59まで選択できます。</p>
         </>
       )}
 
-      <textarea name="reason" rows={2} placeholder="理由・連絡事項(任意)" className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />
+      <textarea name="reason" rows={2} placeholder="理由・連絡事項" className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />
 
       {state?.error && <p className="text-sm" style={{ color: "var(--color-absent)" }}>{state.error}</p>}
 
