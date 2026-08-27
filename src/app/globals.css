@@ -20,6 +20,10 @@
   --color-school:#DCEFD8;
 }
 
+/* Calendar event colors: override legacy inline colors until the event renderer is migrated. */
+button[style*="#FFF3CD"] { background: var(--color-juku) !important; color: white !important; }
+button[style*="#E3EEFB"] { background: var(--color-school) !important; color: var(--color-ink) !important; }
+
 body {
   background: var(--color-bg);
   color: var(--color-ink);
