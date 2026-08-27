@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800;900&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap');
 @import "tailwindcss";
 
 :root{
@@ -21,8 +21,8 @@
 }
 
 /* Calendar event colors: override legacy inline colors until the event renderer is migrated. */
-button[style*="#FFF3CD"] { background: var(--color-juku) !important; color: white !important; }
-button[style*="#E3EEFB"] { background: var(--color-school) !important; color: var(--color-ink) !important; }
+button[style*="#FFF3CD"], button[style*="rgb(255, 243, 205)"] { background: var(--color-juku) !important; color: white !important; }
+button[style*="#E3EEFB"], button[style*="rgb(227, 238, 251)"] { background: var(--color-school) !important; color: var(--color-ink) !important; }
 
 body {
   background: var(--color-bg);
