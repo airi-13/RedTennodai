@@ -25,11 +25,11 @@ const adminLinks = [
 ];
 
 const studentLinks = [
-  { href: "/my", label: "カレンダー" },
-  { href: "/my/history", label: "出欠履歴" },
-  { href: "/my/textbooks", label: "使用テキスト" },
+  { href: "/my", label: "マイページ" },
+  { href: "/my/history", label: "授業履歴" },
+  { href: "/my/textbooks", label: "テキスト" },
   { href: "/my/pricing", label: "費用シミュレーション" },
-  { href: "/my/request", label: "欠席・振替を申請" },
+  { href: "/my/request", label: "申請" },
 ];
 
 export function HeaderNav() {
