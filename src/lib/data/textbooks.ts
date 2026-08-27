@@ -1,4 +1,5 @@
 // src/lib/data/textbooks.ts
+import "server-only";
 import { supabase } from '@/lib/supabase'
 
 export const TEXTBOOK_LEVELS = ['小学生', '中学生', '高校生'] as const
