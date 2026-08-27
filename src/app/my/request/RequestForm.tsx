@@ -25,14 +25,23 @@ export function RequestForm({ periods }: { periods: { id: number; name: string }
     const data = new FormData(form);
     const draft: RequestDraft = {
       requestType,
-      targetDate: String(data.get("targetDate") ?? ""),
+      targetDate: String(data.get("targetDate") ?? "").trim(),
       targetPeriodId: String(data.get("targetPeriodId") ?? ""),
       makeupDate: String(data.get("makeupDate") ?? ""),
       makeupPeriodId: String(data.get("makeupPeriodId") ?? ""),
       reason: String(data.get("reason") ?? ""),
     };
 
-    if (!draft.targetDate) return;
+    if (!draft.targetDate) {
+      const targetDateInput = form.elements.namedItem("targetDate");
+      if (targetDateInput instanceof HTMLInputElement) {
+        targetDateInput.setCustomValidity("対象日を入力してください");
+        targetDateInput.reportValidity();
+        targetDateInput.addEventListener("input", () => targetDateInput.setCustomValidity(""), { once: true });
+      }
+      return;
+    }
+
     sessionStorage.setItem("red-tennodai-request-draft", JSON.stringify(draft));
     router.push("/my/request/confirm");
   }
