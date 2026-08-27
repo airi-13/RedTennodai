@@ -3,27 +3,26 @@
 export type Period = {
   id: number;
   name: string; // '①'〜'⑧'
-  start_time: string | null; // 'HH:MM:SS'
+  start_time: string | null;
   end_time: string | null;
   sort_order: number;
 };
 
 export type PeriodAvailability = {
   id: number;
-  day_of_week: number; // 0=日〜6=土
+  day_of_week: number;
   period_id: number;
   is_open: boolean;
 };
 
 export type Subject = {
   id: number;
-  code: string; // 'M' | 'E' | 'Q' | 'J' | 'D'
+  code: string;
   name: string;
   sort_order: number;
 };
 
 export type StudentStatus = "active" | "inactive";
-
 export type Student = {
   id: number;
   name: string;
@@ -51,30 +50,28 @@ export type AttendanceStatus = "present" | "absent" | "late" | "makeup" | "no_sh
 export type AttendanceRecord = {
   id: number;
   student_id: number;
-  date: string; // 'YYYY-MM-DD'
+  date: string;
   period_id: number;
   subject_id: number;
   status: AttendanceStatus;
   note: string | null;
+  makeup_date?: string | null;
+  makeup_period_id?: number | null;
+  makeup_attendance_status?: AttendanceStatus | null;
 };
 
-// 画面表示用: その日・そのコマに来る予定の生徒1人分
-// student_schedules(定期予定)にattendance_records(その日の上書き)を重ねた結果
 export type AttendanceSlot = {
-  // 定期スケジュールの行がある場合はそのid、振替追加分などで無ければnull
   scheduleId: number | null;
   studentId: number;
   studentName: string;
   periodId: number;
   subjectId: number;
-  // attendance_recordsに行があればそのidとstatus、無ければ未確定(null)
   attendanceRecordId: number | null;
   status: AttendanceStatus | null;
   note: string | null;
-  // status='makeup'の場合の振替先
   makeupDate: string | null;
   makeupPeriodId: number | null;
-  // true: このスロット自体が「他の日の振替先として追加された」もの(表示専用)
+  makeupAttendanceStatus?: AttendanceStatus | null;
   isTransferAddition?: boolean;
   transferFromDate?: string | null;
   transferFromPeriodId?: number | null;
@@ -82,7 +79,6 @@ export type AttendanceSlot = {
 
 export type RequestType = "absence" | "makeup";
 export type RequestStatus = "pending" | "approved" | "rejected";
-
 export type AttendanceRequest = {
   id: number;
   student_id: number;
@@ -97,7 +93,4 @@ export type AttendanceRequest = {
   processed_at: string | null;
 };
 
-// 画面表示用: 申請1件に生徒名を付加したもの(管理者の一覧画面用)
-export type AttendanceRequestWithStudent = AttendanceRequest & {
-  studentName: string;
-};
+export type AttendanceRequestWithStudent = AttendanceRequest & { studentName: string };
