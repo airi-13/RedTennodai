@@ -39,7 +39,7 @@ export default async function MyCalendarPage({
       month,
     }),
     supabase.from("notices").select("*").order("created_at", { ascending: false }).limit(5),
-    supabase.from("periods").select("id, name").order("sort_order"),
+    supabase.from("periods").select("id, name, start_time").order("sort_order"),
   ]);
 
   return (

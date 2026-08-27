@@ -12,7 +12,19 @@ const STATUS_OPTIONS: { value: AttendanceStatus; label: string }[] = [
   { value: "absent", label: "欠席" },
   { value: "late", label: "遅刻" },
   { value: "makeup", label: "振替" },
+  { value: "no_show", label: "無断欠席" },
 ];
+
+// 振替先(destination)の出欠は「振替」を選ぶと元の記録が上書きされてしまうため出さない
+const TRANSFER_ADDITION_STATUS_OPTIONS = STATUS_OPTIONS.filter((o) => o.value !== "makeup");
+
+// 行全体をグレーアウトする状態(振替元・無断欠席): 一覧からは消さずに視覚的に控えめにする
+const DIMMED_STATUSES: AttendanceStatus[] = ["makeup", "no_show"];
+
+function statusColor(value: AttendanceStatus) {
+  if (value === "no_show") return "#8A8A8A";
+  return `var(--color-${value})`;
+}
 
 function shiftDate(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number);
@@ -129,10 +141,14 @@ function PeriodCard({
         <ul className="divide-y divide-[var(--color-border)]">
           {slots.map((slot) =>
             slot.isTransferAddition ? (
-              <TransferAdditionRow
-                key={`transfer-${slot.attendanceRecordId}`}
+              <StudentRow
+                key={`transfer-${slot.studentId}-${slot.periodId}`}
                 slot={slot}
+                subjects={subjects}
                 periods={periods}
+                date={date}
+                periodId={slot.periodId}
+                isTransferAddition
               />
             ) : (
               <StudentRow
@@ -151,37 +167,20 @@ function PeriodCard({
   );
 }
 
-// 他の日の振替先としてこのコマに追加された生徒。表示専用(元の記録側で編集する)。
-function TransferAdditionRow({ slot, periods }: { slot: AttendanceSlot; periods: Period[] }) {
-  const fromPeriodName = periods.find((p) => p.id === slot.transferFromPeriodId)?.name ?? "";
-  return (
-    <li className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ background: "#EAF1FB" }}>
-      <span className="min-w-[7rem] font-medium">{slot.studentName}</span>
-      <span
-        className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
-        style={{ background: "var(--color-makeup)" }}
-      >
-        振替追加
-      </span>
-      <span className="text-xs text-[var(--color-ink-soft)]">
-        元: {slot.transferFromDate} {fromPeriodName}
-      </span>
-    </li>
-  );
-}
-
 function StudentRow({
   slot,
   subjects,
   periods,
   date,
   periodId,
+  isTransferAddition = false,
 }: {
   slot: AttendanceSlot;
   subjects: Subject[];
   periods: Period[];
   date: string;
   periodId: number;
+  isTransferAddition?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [subjectId, setSubjectId] = useState(slot.subjectId);
@@ -190,6 +189,10 @@ function StudentRow({
   const [makeupPeriodId, setMakeupPeriodId] = useState<number | "">(
     slot.makeupPeriodId ?? ""
   );
+
+  const dimmed = !isTransferAddition && status && DIMMED_STATUSES.includes(status);
+  const options = isTransferAddition ? TRANSFER_ADDITION_STATUS_OPTIONS : STATUS_OPTIONS;
+  const fromPeriodName = periods.find((p) => p.id === slot.transferFromPeriodId)?.name ?? "";
 
   function apply(
     newStatus: AttendanceStatus,
@@ -213,9 +216,21 @@ function StudentRow({
   }
 
   return (
-    <li className="flex flex-col gap-2 px-4 py-3">
+    <li
+      className="flex flex-col gap-2 px-4 py-3"
+      style={dimmed ? { background: "#F0F0F0", opacity: 0.75 } : undefined}
+    >
       <div className="flex flex-wrap items-center gap-3">
         <span className="min-w-[7rem] font-medium">{slot.studentName}</span>
+
+        {isTransferAddition && (
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+            style={{ background: "var(--color-makeup)" }}
+          >
+            振替追加(元: {slot.transferFromDate} {fromPeriodName})
+          </span>
+        )}
 
         <select
           value={subjectId}
@@ -234,7 +249,7 @@ function StudentRow({
         </select>
 
         <div className="flex gap-1">
-          {STATUS_OPTIONS.map((opt) => {
+          {options.map((opt) => {
             const active = status === opt.value;
             return (
               <button
@@ -245,8 +260,8 @@ function StudentRow({
                 style={
                   active
                     ? {
-                        background: `var(--color-${opt.value})`,
-                        borderColor: `var(--color-${opt.value})`,
+                        background: statusColor(opt.value),
+                        borderColor: statusColor(opt.value),
                         color: "white",
                       }
                     : {
@@ -266,7 +281,7 @@ function StudentRow({
         )}
       </div>
 
-      {status === "makeup" && (
+      {!isTransferAddition && status === "makeup" && (
         <div className="ml-[7rem] flex flex-wrap items-center gap-2 text-sm">
           <span className="text-xs text-[var(--color-ink-soft)]">振替先:</span>
           <input

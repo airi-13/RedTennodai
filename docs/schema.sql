@@ -181,7 +181,7 @@ CREATE TABLE attendance_records (
   date        DATE NOT NULL,
   period_id   INTEGER NOT NULL REFERENCES periods(id),
   subject_id  INTEGER NOT NULL REFERENCES subjects(id),
-  status      TEXT NOT NULL CHECK (status IN ('present','absent','late','makeup')), -- makeup=この回自体が振替授業
+  status      TEXT NOT NULL CHECK (status IN ('present','absent','late','makeup','no_show')), -- makeup=この回自体が振替授業, no_show=無断欠席
   note        TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),

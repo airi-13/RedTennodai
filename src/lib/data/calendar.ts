@@ -20,8 +20,10 @@ export type CalendarDayItem =
       subject: string;
       periodLabel: string;
       status: LessonDisplayStatus;
+      attendanceRecordId: number | null;
       // status='makeup'(振替元)のとき、振替先の日付
       transferToDate?: string | null;
+      transferToPeriodId?: number | null;
       // status='makeup_added'(振替先)のとき、元の日付・コマ
       transferFromDate?: string | null;
       transferFromPeriodLabel?: string | null;
@@ -89,7 +91,9 @@ export async function buildStudentCalendar(params: {
         subject: subjectById.get(record ? record.subject_id : s.subject_id) ?? "",
         periodLabel: periodById.get(s.period_id) ?? "",
         status: record ? (record.status as AttendanceStatus) : "scheduled",
+        attendanceRecordId: record ? record.id : null,
         transferToDate: record?.status === "makeup" ? record.makeup_date : null,
+        transferToPeriodId: record?.status === "makeup" ? record.makeup_period_id : null,
       });
     }
 
@@ -99,6 +103,7 @@ export async function buildStudentCalendar(params: {
         subject: subjectById.get(r.subject_id) ?? "",
         periodLabel: periodById.get(r.makeup_period_id ?? -1) ?? "(コマ未定)",
         status: "makeup_added",
+        attendanceRecordId: r.id,
         transferFromDate: r.date,
         transferFromPeriodLabel: periodById.get(r.period_id) ?? "",
       });

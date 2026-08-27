@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import type { AttendanceRequestWithStudent, Period } from "@/lib/types";
-import { approveRequestAction, rejectRequestAction } from "./actions";
+import { approveRequestAction, rejectRequestAction, cancelApprovedRequestAction } from "./actions";
 
-const TYPE_LABEL = { absence: "欠席申請", makeup: "振替申請" } as const;
-const STATUS_LABEL = { pending: "確認待ち", approved: "承認済み", rejected: "却下" } as const;
+const TYPE_LABEL = { absence: "欠席", makeup: "振替" } as const;
+const STATUS_LABEL = { pending: "確認待ち", approved: "登録済み", rejected: "取り消し済み" } as const;
 
 export function RequestsView({
   requests,
@@ -24,15 +24,15 @@ export function RequestsView({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-lg font-semibold">申請一覧</h1>
+        <h1 className="text-lg font-semibold">生徒からの欠席・振替 履歴</h1>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          承認しても出欠記録は自動更新されません。承認後、必要に応じて「出欠入力」画面から反映してください。
+          生徒が登録した欠席・振替は承認不要でその場で出欠に反映されます。ここは履歴確認用です。誤登録などがあれば「取り消す」で出欠の反映を取り消せます。
         </p>
       </div>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-[var(--color-ink-soft)]">
-          確認待ち({pending.length}件)
+          未反映(対象コマ不明などで自動反映できなかったもの、{pending.length}件)
         </h2>
         {pending.length === 0 ? (
           <p className="text-sm text-[var(--color-ink-soft)]">ありません</p>
@@ -123,6 +123,20 @@ function RequestRow({
               却下
             </button>
           </div>
+        ) : request.status === "approved" ? (
+          <button
+            disabled={isPending}
+            onClick={() =>
+              startTransition(async () => {
+                await cancelApprovedRequestAction(request.id);
+                setResultMsg("取り消しました(出欠記録も削除しました)");
+              })
+            }
+            className="rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+            style={{ borderColor: "var(--color-absent)", color: "var(--color-absent)" }}
+          >
+            取り消す
+          </button>
         ) : (
           <span className="text-xs text-[var(--color-ink-soft)]">
             {STATUS_LABEL[request.status]}

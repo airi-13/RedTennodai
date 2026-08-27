@@ -39,6 +39,27 @@ export async function setRequestStatus(id: number, status: RequestStatus) {
   if (error) throw error;
 }
 
+// 生徒が登録した内容(承認済み)を管理者が取り消す。対象の出欠記録も削除して未確定に戻す。
+export async function cancelApprovedRequest(id: number) {
+  const { data: req, error } = await supabase
+    .from("attendance_requests")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  const request = req as AttendanceRequest;
+
+  if (request.target_period_id) {
+    await supabase
+      .from("attendance_records")
+      .delete()
+      .eq("student_id", request.student_id)
+      .eq("date", request.target_date)
+      .eq("period_id", request.target_period_id);
+  }
+
+  await setRequestStatus(id, "rejected");
+}
 // 申請を承認し、対象のコマが指定されていればattendance_recordsにも自動反映する。
 // - 欠席申請: target_period_idのコマをstatus='absent'に
 // - 振替申請: target_period_idのコマをstatus='makeup'にし、振替先(makeup_date/period)を記録
