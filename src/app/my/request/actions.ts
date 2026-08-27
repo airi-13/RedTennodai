@@ -70,7 +70,7 @@ export async function submitRequestAction(
       .maybeSingle();
 
     if (!isValidMakeupDestinationSlot(targetDate, makeupDate, makeupPeriod?.start_time ?? null, now)) {
-      return { error: "振替先は現在時刻以降、元授業日の4週間後23:59までのコマを選択してください。" };
+      return { error: "振替授業は現在時刻以降、元授業日の4週間後23:59までのコマを選択してください。" };
     }
   }
 
