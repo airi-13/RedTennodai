@@ -1,5 +1,5 @@
-// スプレッドシートからコピーした行(タブ区切り)を生徒登録用データに変換する。
-// 列の並び: 生徒ID, 性, 姓, 名, セイ, メイ, 学校, 学年(例:高2/中3/小6), Pass
+// 生徒一括入力用の12列データを解析する。
+// 生徒ID, 性, 姓, 名, ｾｲ, ﾒｲ, 学校, 学年, Pass, 授業科目, 授業数, 授業コマ
 
 export type ParsedStudentRow = {
   raw: string;
@@ -15,6 +15,9 @@ export type ParsedStudentRow = {
     schoolLevel: string;
     grade: number;
     password: string;
+    subjectsText: string | null;
+    lessonCountText: string | null;
+    scheduleText: string | null;
   };
 };
 
@@ -34,7 +37,12 @@ export function parsePastedStudents(text: string): ParsedStudentRow[] {
 
   return lines.map((line, i) => {
     const cols = line.split("\t").map((c) => c.trim());
-    const [loginId, gender, sei, mei, seiKana, meiKana, schoolName, gradeText, password] = cols;
+    const [loginId, gender, sei, mei, seiKana, meiKana, schoolName, gradeText, password, subjectsText, lessonCountText, scheduleText] = cols;
+
+    // ヘッダー行を貼り付けてもエラーにしない。
+    if (loginId === "生徒ID") {
+      return { raw: line, lineNumber: i + 1, ok: false, error: "ヘッダー行は登録対象外です" };
+    }
 
     if (!loginId || !sei || !mei || !gradeText || !password) {
       return {
@@ -70,6 +78,9 @@ export function parsePastedStudents(text: string): ParsedStudentRow[] {
         schoolLevel: gradeParsed.schoolLevel,
         grade: gradeParsed.grade,
         password,
+        subjectsText: subjectsText || null,
+        lessonCountText: lessonCountText || null,
+        scheduleText: scheduleText || null,
       },
     };
   });
