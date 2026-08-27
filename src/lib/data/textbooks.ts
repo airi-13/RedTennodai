@@ -56,6 +56,14 @@ export function hasTextbookSubject(textbook: Textbook, subject: TextbookSubject)
   return textbook.subjects.includes(subject)
 }
 
+/**
+ * 表示用の教科を内部カテゴリへ正規化する。
+ * 小学生の「算数」はDB上の共通カテゴリ「数学」として扱う。
+ */
+export function normalizeTextbookSubject(subject: string): TextbookSubject {
+  return subject === '算数' ? '数学' : subject as TextbookSubject
+}
+
 export async function listTextbooks(): Promise<Textbook[]> {
   const { data, error } = await supabase
     .from('textbooks')
