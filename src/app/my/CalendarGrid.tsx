@@ -58,10 +58,8 @@ function todayString() {
 
 function formatDateTime(date: string, periodStartTime: string | null) {
   if (!periodStartTime) return date;
-  const [y, m, d] = date.split("-").map(Number);
-  const weekday = new Date(y, m - 1, d).getDay();
-  const weekdayLabel = ["日", "月", "火", "水", "木", "金", "土"][weekday];
-  return `${m}/${d} ${weekdayLabel} ${periodStartTime.slice(0, 5)}`;
+  const [, m, d] = date.split("-").map(Number);
+  return `${m}/${d} ${periodStartTime.slice(0, 5)}`;
 }
 
 type SelectedLesson = {
@@ -137,7 +135,6 @@ function LessonModal({ selected, periods, onClose }: {
 }) {
   const { date, item } = selected;
   const periodId = periods.find((p) => p.name === item.periodLabel)?.id ?? "";
-  const period = periods.find((p) => p.id === periodId);
 
   if (item.status === "makeup") {
     return (
@@ -162,7 +159,7 @@ function LessonModal({ selected, periods, onClose }: {
   return (
     <Overlay onClose={onClose}>
       <ModalHeader date={date} item={item} onClose={onClose} />
-      <NewRegistrationForm date={date} periodId={periodId} periods={periods} periodStartTime={period?.start_time ?? null} />
+      <NewRegistrationForm date={date} periodId={periodId} periods={periods} />
     </Overlay>
   );
 }
@@ -191,11 +188,10 @@ function ModalHeader({ date, item, onClose }: {
   );
 }
 
-function NewRegistrationForm({ date, periodId, periods, periodStartTime }: {
+function NewRegistrationForm({ date, periodId, periods }: {
   date: string;
   periodId: number | "";
   periods: { id: number; name: string; start_time: string | null }[];
-  periodStartTime: string | null;
 }) {
   const [requestType, setRequestType] = useState<"absence" | "makeup">("absence");
   const [makeupDate, setMakeupDate] = useState("");
