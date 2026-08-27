@@ -78,6 +78,42 @@ export async function createTextbook(input: {
   return { ...data, subjects: data.subjects ?? [data.subject] } as Textbook
 }
 
+export async function updateTextbook(id: string, input: {
+  level: TextbookLevel
+  subjects: TextbookSubject[]
+  title: string
+  publisher?: string
+  description?: string
+  grade_label: string
+}): Promise<Textbook> {
+  if (!TEXTBOOK_LEVELS.includes(input.level)) throw new Error('区分が不正です')
+  if (!input.subjects.length || input.subjects.some((s) => !TEXTBOOK_SUBJECTS.includes(s))) {
+    throw new Error('科目が不正です')
+  }
+  if (!input.title.trim()) throw new Error('教材名を入力してください')
+  if (!isValidTextbookGrade(input.level, input.grade_label)) {
+    throw new Error('区分と学年の組み合わせが不正です')
+  }
+
+  const { data, error } = await supabase
+    .from('textbooks')
+    .update({
+      level: input.level,
+      subjects: input.subjects,
+      subject: input.subjects[0],
+      title: input.title.trim(),
+      publisher: input.publisher || null,
+      description: input.description || null,
+      grade_label: input.grade_label,
+    })
+    .eq('id', id)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return { ...data, subjects: data.subjects ?? [data.subject] } as Textbook
+}
+
 export async function deleteTextbook(id: string): Promise<void> {
   const { error } = await supabase.from('textbooks').delete().eq('id', id)
   if (error) throw error
