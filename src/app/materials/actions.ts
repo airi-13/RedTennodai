@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createTextbook, deleteTextbook } from "@/lib/data/textbooks";
+import { createTextbook, deleteTextbook, updateTextbook } from "@/lib/data/textbooks";
 import type { TextbookLevel, TextbookSubject } from "@/lib/data/textbooks";
 import { upsertPricingRule } from "@/lib/data/pricing";
 
@@ -20,6 +20,18 @@ export async function createTextbookAction(input: {
   grade_label: string;
 }) {
   await createTextbook(input);
+  refresh();
+}
+
+export async function updateTextbookAction(id: string, input: {
+  level: TextbookLevel;
+  subjects: TextbookSubject[];
+  title: string;
+  publisher?: string;
+  description?: string;
+  grade_label: string;
+}) {
+  await updateTextbook(id, input);
   refresh();
 }
 
