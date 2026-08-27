@@ -1,6 +1,8 @@
 "use server";
 
 import { createAnonClient } from "@/lib/supabase-anon";
+import { supabase as adminSupabase } from "@/lib/supabase";
+import { revalidatePath } from "next/cache";
 
 function parseDate(value: string) {
   const date = new Date(`${value}T00:00:00`);
@@ -33,7 +35,7 @@ export async function registerMakeupAction(
     return { error: "振替日と振替コマを入力してください" };
   }
 
-  const { data: record } = await supabase
+  const { data: record } = await adminSupabase
     .from("attendance_records")
     .select("id, student_id, date, status, makeup_date, makeup_period_id")
     .eq("id", recordId)
@@ -52,12 +54,14 @@ export async function registerMakeupAction(
     return { error: "振替日は欠席日から4週間以内で選択してください" };
   }
 
-  const { error } = await supabase
+  const { error } = await adminSupabase
     .from("attendance_records")
-    .update({ makeup_date: toIso(destinationDate), makeup_period_id: makeupPeriodId })
-    .eq("id", record.id)
-    .eq("student_id", student.id);
+    .update({ status: "makeup", makeup_date: toIso(destinationDate), makeup_period_id: makeupPeriodId })
+    .eq("id", record.id);
   if (error) return { error: `振替登録に失敗しました (${error.message})` };
 
+  revalidatePath("/my");
+  revalidatePath("/my/request/makeup");
+  revalidatePath("/attendance");
   return { success: true };
 }

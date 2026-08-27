@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +18,11 @@ export default function MyRequestPage() {
       >
         カレンダーを開く
       </Link>
-    </div>
-  );
-}
+      <p className="pt-2 text-sm">
+        <Link href="/my/request/makeup" className="text-[var(--color-ink-soft)] underline">
+          振替日が未登録の授業をまとめて確認する →
+        </Link>
+      </p>
     </div>
   );
 }

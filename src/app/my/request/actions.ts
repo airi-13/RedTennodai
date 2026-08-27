@@ -156,4 +156,3 @@ export async function addMakeupDateAction(
   revalidatePath("/attendance");
   redirect("/my?submitted=1");
 }
-}
