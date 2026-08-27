@@ -20,6 +20,7 @@ function lessonLabel(item: Extract<CalendarDayItem, { type: "lesson" }>) {
 function itemStyle(item: CalendarDayItem) {
   if (item.type === "announcement") return { background: "#FFF3CD" };
   if (item.type === "school_event") return { background: "#E3EEFB" };
+  if (item.type === "lesson" && item.status === "makeup_added" && item.makeupAttendanceStatus === "absent") return { background: "var(--color-absent)", color: "white" };
   switch (item.status) {
     case "absent": return { background: "var(--color-absent)", color: "white" };
     case "makeup":
@@ -98,16 +99,16 @@ function LessonModal({ selected, periods, onClose }: { selected: SelectedLesson;
   }
   if (item.status === "makeup_added") {
     const sourcePeriod = periods.find((p) => p.name === item.transferFromPeriodLabel);
-    return <MakeupDestinationModal selected={selected} targetPeriodId={period?.id ?? ""} sourceTime={formatDateTime(item.transferFromDate ?? date, sourcePeriod?.start_time ?? null)} destinationTime={formatDateTime(date, period?.start_time ?? null)} onClose={onClose} />;
+    return <MakeupDestinationModal selected={selected} targetPeriodId={period?.id ?? ""} sourceTime={formatDateTime(item.transferFromDate ?? date, sourcePeriod?.start_time ?? null)} destinationTime={formatDateTime(date, period?.start_time ?? null)} alreadyAbsent={item.makeupAttendanceStatus === "absent"} onClose={onClose} />;
   }
   return <Overlay onClose={onClose}><ModalHeader date={date} item={item} onClose={onClose} /><NewRegistrationForm date={date} periodId={period?.id ?? ""} periods={periods} /></Overlay>;
 }
 
-function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinationTime, onClose }: { selected: SelectedLesson; targetPeriodId: number | ""; sourceTime: string; destinationTime: string; onClose: () => void }) {
+function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinationTime, alreadyAbsent, onClose }: { selected: SelectedLesson; targetPeriodId: number | ""; sourceTime: string; destinationTime: string; alreadyAbsent: boolean; onClose: () => void }) {
   const [state, formAction, isPending] = useActionState(submitRequestAction, undefined);
   return <Overlay onClose={onClose}>
     <div className="space-y-2"><p className="font-bold">振替授業</p><p className="text-sm">{sourceTime}</p><p className="pl-8 text-sm">↓</p><p className="text-sm">{destinationTime}</p></div>
-    <form action={formAction} className="space-y-3">
+    {!alreadyAbsent && <form action={formAction} className="space-y-3">
       <input type="hidden" name="requestType" value="absence" />
       <input type="hidden" name="targetDate" value={selected.date} />
       <input type="hidden" name="targetPeriodId" value={targetPeriodId} />
@@ -115,7 +116,8 @@ function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinat
       {state?.error && <p className="text-sm" style={{ color: "var(--color-absent)" }}>{state.error}</p>}
       <button type="submit" disabled={isPending || targetPeriodId === ""} className="w-full rounded-md py-2 text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--color-absent)" }}>欠席</button>
       <p className="text-[10px] text-[var(--color-ink-soft)]">授業開始5分前まで申請できます。</p>
-    </form>
+    </form>}
+    {alreadyAbsent && <p className="text-sm font-medium" style={{ color: "var(--color-absent)" }}>欠席</p>}
   </Overlay>;
 }
 
