@@ -1,12 +1,12 @@
-// 欠席・振替登録に関する時間ルール(DBに依存しない純粋関数)。
+// 欠席・振替登録に関する時間ルール。
 
-// 対象授業の開始時刻(date + start_time)の5分前を過ぎていたら登録不可。
+// 欠席は対象授業の開始5分前まで登録可能。
 export function isBeforeRegistrationDeadline(
-  targetDate: string, // 'YYYY-MM-DD'
-  periodStartTime: string | null, // 'HH:MM:SS' | null
+  targetDate: string,
+  periodStartTime: string | null,
   now: Date = new Date()
 ): boolean {
-  if (!periodStartTime) return true; // 時刻不明なら制限しない
+  if (!periodStartTime) return true;
   const [h, m] = periodStartTime.split(":").map(Number);
   const [y, mo, d] = targetDate.split("-").map(Number);
   const lessonStart = new Date(y, mo - 1, d, h, m);
@@ -14,7 +14,38 @@ export function isBeforeRegistrationDeadline(
   return now.getTime() <= deadline.getTime();
 }
 
-// 振替日は元の授業日より後、かつ4週間(28日)以内のみ有効。
+// 振替の元授業は「現在時刻+5分」以降の授業のみ対象にする。
+export function isValidMakeupSourceSlot(
+  targetDate: string,
+  periodStartTime: string | null,
+  now: Date = new Date()
+): boolean {
+  if (!periodStartTime) return false;
+  const [h, m] = periodStartTime.split(":").map(Number);
+  const [y, mo, d] = targetDate.split("-").map(Number);
+  const lessonStart = new Date(y, mo - 1, d, h, m);
+  const minimum = new Date(now.getTime() + 5 * 60 * 1000);
+  return lessonStart.getTime() >= minimum.getTime();
+}
+
+// 振替先は現在時刻以降、元授業日の4週間後23:59まで。
+export function isValidMakeupDestinationSlot(
+  targetDate: string,
+  makeupDate: string,
+  makeupPeriodStartTime: string | null,
+  now: Date = new Date()
+): boolean {
+  if (!makeupPeriodStartTime) return false;
+  const [y1, m1, d1] = targetDate.split("-").map(Number);
+  const [y2, m2, d2] = makeupDate.split("-").map(Number);
+  const [h, m] = makeupPeriodStartTime.split(":").map(Number);
+  const minimum = now.getTime();
+  const makeup = new Date(y2, m2 - 1, d2, h, m).getTime();
+  const maxDate = new Date(y1, m1 - 1, d1 + 28, 23, 59, 59, 999).getTime();
+  return makeup >= minimum && makeup <= maxDate;
+}
+
+// 振替先の日付だけを判定する(表示側でも利用)。
 export function isValidMakeupDateRange(targetDate: string, makeupDate: string): boolean {
   const [y1, m1, d1] = targetDate.split("-").map(Number);
   const [y2, m2, d2] = makeupDate.split("-").map(Number);
