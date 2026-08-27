@@ -2,13 +2,40 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { submitRequestAction } from "./actions";
 
 const inputClass = "w-full rounded-xl border border-[var(--color-border)] bg-white/70 px-3.5 py-3 text-sm outline-none transition placeholder:text-[var(--color-ink-soft)]/70 focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/10";
 
+export type RequestDraft = {
+  requestType: "absence" | "makeup";
+  targetDate: string;
+  targetPeriodId: string;
+  makeupDate: string;
+  makeupPeriodId: string;
+  reason: string;
+};
+
 export function RequestForm({ periods }: { periods: { id: number; name: string }[] }) {
+  const router = useRouter();
   const [state, formAction, isPending] = useActionState(submitRequestAction, undefined);
   const [requestType, setRequestType] = useState<"absence" | "makeup">("absence");
+
+  function goToConfirmation(form: HTMLFormElement) {
+    const data = new FormData(form);
+    const draft: RequestDraft = {
+      requestType,
+      targetDate: String(data.get("targetDate") ?? ""),
+      targetPeriodId: String(data.get("targetPeriodId") ?? ""),
+      makeupDate: String(data.get("makeupDate") ?? ""),
+      makeupPeriodId: String(data.get("makeupPeriodId") ?? ""),
+      reason: String(data.get("reason") ?? ""),
+    };
+
+    if (!draft.targetDate) return;
+    sessionStorage.setItem("red-tennodai-request-draft", JSON.stringify(draft));
+    router.push("/my/request/confirm");
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-10">
@@ -20,7 +47,7 @@ export function RequestForm({ periods }: { periods: { id: number; name: string }
           <p className="mt-2 text-sm leading-6 text-[var(--color-ink-soft)]">授業を休む場合や、別の日への振替を希望する場合はこちらから申請してください。</p>
         </header>
 
-        <form action={formAction} className="space-y-7 px-5 py-6 sm:px-8 sm:py-8">
+        <form action={formAction} onSubmit={(event) => { event.preventDefault(); goToConfirmation(event.currentTarget); }} className="space-y-7 px-5 py-6 sm:px-8 sm:py-8">
           <section>
             <SectionTitle number="01" title="申請内容" />
             <div className="grid grid-cols-2 gap-3">
@@ -48,15 +75,15 @@ export function RequestForm({ periods }: { periods: { id: number; name: string }
           </section>}
 
           <section className="space-y-4">
-            <SectionTitle number={requestType === "makeup" ? "04" : "03"} title="連絡事項" optional />
-            <Field label="理由・連絡事項" hint="任意"><textarea name="reason" rows={4} placeholder="必要があれば、担当者への連絡事項を入力してください" className={`${inputClass} resize-y`} /></Field>
+            <SectionTitle number={requestType === "makeup" ? "04" : "03"} title="連絡事項" />
+            <Field label="理由・連絡事項"><textarea name="reason" rows={4} placeholder="必要があれば、担当者への連絡事項を入力してください" className={`${inputClass} resize-y`} /></Field>
           </section>
 
           {state?.error && <div role="alert" className="rounded-xl border border-[var(--color-absent)]/25 bg-[var(--color-accent-soft)] px-4 py-3 text-sm leading-6 text-[var(--color-absent)]">{state.error}</div>}
 
           <div className="border-t border-[var(--color-border)] pt-6">
-            <button type="submit" disabled={isPending} className="w-full rounded-xl px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50" style={{ background: "var(--color-accent)" }}>{isPending ? "送信しています…" : "この内容で申請する"}</button>
-            <p className="mt-3 text-center text-xs leading-5 text-[var(--color-ink-soft)]">申請内容を確認してから送信してください。</p>
+            <button type="submit" disabled={isPending} className="w-full rounded-xl px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50" style={{ background: "var(--color-accent)" }}>{isPending ? "確認しています…" : "入力内容を確認する"}</button>
+            <p className="mt-3 text-center text-xs leading-5 text-[var(--color-ink-soft)]">次の画面で内容を確認してから申請できます。</p>
           </div>
         </form>
       </div>
@@ -64,8 +91,8 @@ export function RequestForm({ periods }: { periods: { id: number; name: string }
   );
 }
 
-function SectionTitle({ number, title, optional = false }: { number: string; title: string; optional?: boolean }) {
-  return <div className="mb-3 flex items-baseline gap-2"><span className="text-xs font-bold tracking-widest text-[var(--color-accent)]">{number}</span><h2 className="text-sm font-bold">{title}</h2>{optional && <span className="text-xs text-[var(--color-ink-soft)]">任意</span>}</div>;
+function SectionTitle({ number, title }: { number: string; title: string }) {
+  return <div className="mb-3 flex items-baseline gap-2"><span className="text-xs font-bold tracking-widest text-[var(--color-accent)]">{number}</span><h2 className="text-sm font-bold">{title}</h2></div>;
 }
 
 function TypeButton({ active, onClick, title, description, icon }: { active: boolean; onClick: () => void; title: string; description: string; icon: string }) {
