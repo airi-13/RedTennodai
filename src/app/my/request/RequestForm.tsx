@@ -32,13 +32,8 @@ export function RequestForm({ periods }: { periods: { id: number; name: string }
       reason: String(data.get("reason") ?? ""),
     };
 
-    if (!draft.targetDate) {
-      const targetDateInput = form.elements.namedItem("targetDate");
-      if (targetDateInput instanceof HTMLInputElement) {
-        targetDateInput.setCustomValidity("対象日を入力してください");
-        targetDateInput.reportValidity();
-        targetDateInput.addEventListener("input", () => targetDateInput.setCustomValidity(""), { once: true });
-      }
+    if (!draft.targetDate || !draft.targetPeriodId || (requestType === "makeup" && (!draft.makeupDate || !draft.makeupPeriodId))) {
+      form.reportValidity();
       return;
     }
 
@@ -70,22 +65,21 @@ export function RequestForm({ periods }: { periods: { id: number; name: string }
             <SectionTitle number="02" title="対象の授業" />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="対象日" required hint="休む・変更したい授業の日"><input type="date" name="targetDate" required className={inputClass} /></Field>
-              <Field label="対象のコマ" hint="分かる場合のみ"><select name="targetPeriodId" className={inputClass}><option value="">指定しない</option>{periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+              <Field label="対象のコマ" required><select name="targetPeriodId" required className={inputClass}><option value="">選択してください</option>{periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
             </div>
           </section>
 
           {requestType === "makeup" && <section className="space-y-4">
             <SectionTitle number="03" title="振替の希望" />
-            <div className="rounded-xl border border-[var(--color-makeup)]/25 bg-[var(--color-makeup)]/5 p-4 text-sm leading-6 text-[var(--color-ink-soft)]">希望は任意です。空欄でも申請でき、担当者と相談して決定できます。</div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="振替希望日" hint="任意・相談の上決定"><input type="date" name="makeupDate" className={inputClass} /></Field>
-              <Field label="振替希望のコマ" hint="任意"><select name="makeupPeriodId" className={inputClass}><option value="">指定しない</option>{periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+              <Field label="振替希望日" required><input type="date" name="makeupDate" required className={inputClass} /></Field>
+              <Field label="振替希望のコマ" required><select name="makeupPeriodId" required className={inputClass}><option value="">選択してください</option>{periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
             </div>
           </section>}
 
           <section className="space-y-4">
             <SectionTitle number={requestType === "makeup" ? "04" : "03"} title="連絡事項" />
-            <Field label="理由・連絡事項"><textarea name="reason" rows={4} placeholder="必要があれば、担当者への連絡事項を入力してください" className={`${inputClass} resize-y`} /></Field>
+            <Field label="理由・連絡事項"><textarea name="reason" rows={4} className={`${inputClass} resize-y`} /></Field>
           </section>
 
           {state?.error && <div role="alert" className="rounded-xl border border-[var(--color-absent)]/25 bg-[var(--color-accent-soft)] px-4 py-3 text-sm leading-6 text-[var(--color-absent)]">{state.error}</div>}
