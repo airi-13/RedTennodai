@@ -33,10 +33,27 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const [filterGrade, setFilterGrade] = useState("");
 
   const availableGrades = [TEXTBOOK_ALL_GRADES, ...TEXTBOOK_GRADES[level]];
-  const filterGrades = filterLevel
-    ? [TEXTBOOK_ALL_GRADES, ...TEXTBOOK_GRADES[filterLevel as TextbookLevel]]
-    : [TEXTBOOK_ALL_GRADES, ...Object.values(TEXTBOOK_GRADES).flat()];
-  const uniqueFilterGrades = [...new Set(filterGrades)];
+
+  // 絞り込み候補は、現在の選択条件で実際に存在する教材だけを候補にする。
+  const filterLevelOptions = useMemo(() =>
+    TEXTBOOK_LEVELS.filter((l) => textbooks.some((t) => t.level === l)),
+    [textbooks]
+  );
+
+  const filterSubjectOptions = useMemo(() => {
+    const candidates = textbooks.filter((t) => !filterLevel || t.level === filterLevel);
+    return TEXTBOOK_SUBJECTS.filter((s) => candidates.some((t) => t.subjects.includes(s)));
+  }, [textbooks, filterLevel]);
+
+  const filterGradeOptions = useMemo(() => {
+    const candidates = textbooks.filter((t) =>
+      (!filterLevel || t.level === filterLevel) &&
+      (!filterSubject || t.subjects.includes(filterSubject as TextbookSubject))
+    );
+    const grades = new Set<string>();
+    for (const textbook of candidates) grades.add(textbook.grade_label);
+    return [TEXTBOOK_ALL_GRADES, ...Array.from(grades).filter((g) => g !== TEXTBOOK_ALL_GRADES)];
+  }, [textbooks, filterLevel, filterSubject]);
 
   const filteredTextbooks = useMemo(() => textbooks.filter((t) =>
     (!filterLevel || t.level === filterLevel) &&
@@ -47,6 +64,17 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
   const changeLevel = (value: TextbookLevel) => {
     setLevel(value);
     setGradeLabel(TEXTBOOK_GRADES[value][0]);
+  };
+
+  const changeFilterLevel = (value: string) => {
+    setFilterLevel(value);
+    setFilterSubject("");
+    setFilterGrade("");
+  };
+
+  const changeFilterSubject = (value: string) => {
+    setFilterSubject(value);
+    setFilterGrade("");
   };
 
   const toggleSubject = (subject: TextbookSubject) => {
@@ -91,18 +119,19 @@ function TextbookSection({ textbooks }: { textbooks: Textbook[] }) {
 
       <div className="flex flex-wrap items-end gap-2 border-t border-[var(--color-border)] pt-3">
         <Field label="区分で絞り込み">
-          <select value={filterLevel} onChange={(e) => { setFilterLevel(e.target.value); setFilterGrade(""); }} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
-            <option value="">すべて</option>{TEXTBOOK_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+          <select value={filterLevel} onChange={(e) => changeFilterLevel(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
+            <option value="">すべて</option>{filterLevelOptions.map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
         </Field>
         <Field label="科目で絞り込み">
-          <select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
-            <option value="">すべて</option>{TEXTBOOK_SUBJECTS.map((s) => <option key={s} value={s}>{getTextbookSubjectLabel((filterLevel || "中学生") as TextbookLevel, s)}</option>)}
+          <select value={filterSubject} onChange={(e) => changeFilterSubject(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
+            <option value="">すべて</option>{filterSubjectOptions.map((s) => <option key={s} value={s}>{getTextbookSubjectLabel((filterLevel || "中学生") as TextbookLevel, s)}</option>)}
           </select>
         </Field>
         <Field label="学年で絞り込み">
           <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
-            <option value="">すべて</option>{uniqueFilterGrades.map((g) => <option key={g} value={g}>{filterLevel ? getTextbookGradeLabel(filterLevel as TextbookLevel, g) : g}</option>)}</select>
+            <option value="">すべて</option>{filterGradeOptions.map((g) => <option key={g} value={g}>{filterLevel ? getTextbookGradeLabel(filterLevel as TextbookLevel, g) : g}</option>)}
+          </select>
         </Field>
         {(filterLevel || filterSubject || filterGrade) && <button onClick={() => { setFilterLevel(""); setFilterSubject(""); setFilterGrade(""); }} className="text-xs text-[var(--color-ink-soft)] underline">絞り込みを解除</button>}
       </div>
