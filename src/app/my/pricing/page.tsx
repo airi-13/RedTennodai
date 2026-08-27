@@ -10,7 +10,7 @@ const BRAND = '#D13C18'
 
 export default async function PricingPage() {
   const [rules, textbooks] = await Promise.all([listPricingRules(), listTextbooks()])
-  const subjects = Array.from(new Set(textbooks.map((t) => t.subject)))
+  const subjects = Array.from(new Set(textbooks.flatMap((t) => t.subjects)))
 
   return (
     <div className="mx-auto max-w-lg p-4">
