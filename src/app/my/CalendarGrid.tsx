@@ -106,7 +106,7 @@ function LessonModal({ selected, periods, onClose }: { selected: SelectedLesson;
 function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinationTime, onClose }: { selected: SelectedLesson; targetPeriodId: number | ""; sourceTime: string; destinationTime: string; onClose: () => void }) {
   const [state, formAction, isPending] = useActionState(submitRequestAction, undefined);
   return <Overlay onClose={onClose}>
-    <div className="space-y-2"><p className="font-bold">振替授業</p><p className="text-sm">{sourceTime}</p><p className="pl-8 text-sm">↓</p><p className="text-sm">{destinationTime}</p><p className="inline-block rounded-full border border-[var(--color-makeup)] px-3 py-1 text-xs font-medium" style={{ color: "var(--color-makeup)" }}>[振替]</p></div>
+    <div className="space-y-2"><p className="font-bold">振替授業</p><p className="text-sm">{sourceTime}</p><p className="pl-8 text-sm">↓</p><p className="text-sm">{destinationTime}</p></div>
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="requestType" value="absence" />
       <input type="hidden" name="targetDate" value={selected.date} />
