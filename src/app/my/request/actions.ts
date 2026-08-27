@@ -28,17 +28,22 @@ export async function submitRequestAction(
     .maybeSingle();
   if (!student) return { error: "生徒情報が見つかりません" };
 
-  const requestType = String(formData.get("requestType") ?? "absence") as "absence" | "makeup";
-  const targetDate = String(formData.get("targetDate") ?? "");
+  const requestType = String(formData.get("requestType") ?? "").trim();
+  const targetDate = String(formData.get("targetDate") ?? "").trim();
   const targetPeriodIdRaw = formData.get("targetPeriodId");
   const targetPeriodId = targetPeriodIdRaw ? Number(targetPeriodIdRaw) : null;
-  const reason = String(formData.get("reason") ?? "");
-  const makeupDate = String(formData.get("makeupDate") ?? "") || null;
+  const reason = String(formData.get("reason") ?? "").trim();
+  const makeupDateValue = String(formData.get("makeupDate") ?? "").trim();
+  const makeupDate = makeupDateValue || null;
   const makeupPeriodIdRaw = formData.get("makeupPeriodId");
   const makeupPeriodId = makeupPeriodIdRaw ? Number(makeupPeriodIdRaw) : null;
 
+  if (requestType !== "absence" && requestType !== "makeup") {
+    return { error: "申請内容が正しくありません" };
+  }
   if (!targetDate) return { error: "対象日を入力してください" };
   if (!targetPeriodId) return { error: "対象のコマを選択してください" };
+  // 振替日・振替コマは任意: 未定のまま登録し、後から追加できるようにする(addMakeupDateAction)
 
   // 対象コマの開始時刻を取得し、5分前を過ぎていないか確認
   const { data: period } = await supabase
@@ -150,4 +155,5 @@ export async function addMakeupDateAction(
   revalidatePath("/my");
   revalidatePath("/attendance");
   redirect("/my?submitted=1");
+}
 }

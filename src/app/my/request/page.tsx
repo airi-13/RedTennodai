@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,9 @@ export default function MyRequestPage() {
       >
         カレンダーを開く
       </Link>
+    </div>
+  );
+}
     </div>
   );
 }
