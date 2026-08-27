@@ -1,69 +1,33 @@
 // src/lib/data/textbooks.ts
 import "server-only";
 import { supabase } from '@/lib/supabase'
+import {
+  TEXTBOOK_LEVELS,
+  TEXTBOOK_SUBJECTS,
+  TEXTBOOK_ALL_GRADES,
+  TEXTBOOK_GRADES,
+  getTextbookSubjectLabel,
+  getTextbookGradeLabel,
+  isValidTextbookGrade,
+  isTextbookForGrade,
+  hasTextbookSubject,
+  normalizeTextbookSubject,
+} from './textbooks.shared'
+import type { Textbook, TextbookLevel, TextbookSubject } from './textbooks.shared'
 
-export const TEXTBOOK_LEVELS = ['小学生', '中学生', '高校生'] as const
-
-// 数学は内部カテゴリを共通化する。小学生では画面上「算数」と表示する。
-export const TEXTBOOK_SUBJECTS = ['英語', '国語', '数学', '理科', '社会'] as const
-export const TEXTBOOK_ALL_GRADES = '全学年' as const
-
-export const TEXTBOOK_GRADES: Record<(typeof TEXTBOOK_LEVELS)[number], readonly string[]> = {
-  小学生: ['1年', '2年', '3年', '4年', '5年', '6年', '新中1'],
-  中学生: ['1年', '2年', '3年', '新高1'],
-  高校生: ['1年', '2年', '3年'],
+export {
+  TEXTBOOK_LEVELS,
+  TEXTBOOK_SUBJECTS,
+  TEXTBOOK_ALL_GRADES,
+  TEXTBOOK_GRADES,
+  getTextbookSubjectLabel,
+  getTextbookGradeLabel,
+  isValidTextbookGrade,
+  isTextbookForGrade,
+  hasTextbookSubject,
+  normalizeTextbookSubject,
 }
-
-export type TextbookLevel = (typeof TEXTBOOK_LEVELS)[number]
-export type TextbookSubject = (typeof TEXTBOOK_SUBJECTS)[number]
-
-export type Textbook = {
-  id: string
-  level: TextbookLevel
-  subjects: TextbookSubject[]
-  title: string
-  publisher: string | null
-  description: string | null
-  grade_label: string
-  created_at: string
-}
-
-/** 内部カテゴリ「数学」の画面表示名。小学生だけ「算数」にする。 */
-export function getTextbookSubjectLabel(level: TextbookLevel, subject: TextbookSubject): string {
-  if (subject === '数学' && level === '小学生') return '算数'
-  return subject
-}
-
-/** DB上の学年値は既存仕様を維持し、画面では区分に応じて「小3」「中1」等に表示する。 */
-export function getTextbookGradeLabel(level: TextbookLevel, grade: string): string {
-  if (grade === TEXTBOOK_ALL_GRADES) return grade
-  if (grade === '新中1') return grade
-  if (grade === '新高1') return grade
-  if (/^[1-6]年$/.test(grade) && level === '小学生') return `小${grade.replace('年', '')}`
-  if (/^[1-3]年$/.test(grade) && level === '中学生') return `中${grade.replace('年', '')}`
-  if (/^[1-3]年$/.test(grade) && level === '高校生') return `高${grade.replace('年', '')}`
-  return grade
-}
-
-export function isValidTextbookGrade(level: TextbookLevel, grade: string): boolean {
-  return grade === TEXTBOOK_ALL_GRADES || TEXTBOOK_GRADES[level].includes(grade)
-}
-
-export function isTextbookForGrade(textbook: Textbook, grade: string): boolean {
-  return textbook.grade_label === TEXTBOOK_ALL_GRADES || textbook.grade_label === grade
-}
-
-export function hasTextbookSubject(textbook: Textbook, subject: TextbookSubject): boolean {
-  return textbook.subjects.includes(subject)
-}
-
-/**
- * 表示用の教科を内部カテゴリへ正規化する。
- * 小学生の「算数」はDB上の共通カテゴリ「数学」として扱う。
- */
-export function normalizeTextbookSubject(subject: string): TextbookSubject {
-  return subject === '算数' ? '数学' : subject as TextbookSubject
-}
+export type { Textbook, TextbookLevel, TextbookSubject }
 
 export async function listTextbooks(): Promise<Textbook[]> {
   const { data, error } = await supabase
