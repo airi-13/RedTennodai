@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import type { AttendanceRequestWithStudent, Period } from "@/lib/types";
-import type { StudentRequest } from "@/lib/data/student-requests";
-import { ADDITIONAL_REQUEST_LABEL } from "@/lib/data/student-requests";
+import type { StudentRequest } from "@/lib/data/student-request-types";
+import { ADDITIONAL_REQUEST_LABEL } from "@/lib/data/student-request-types";
 import { approveRequestAction, rejectRequestAction, cancelApprovedRequestAction, approveStudentRequestAction, rejectStudentRequestAction } from "./actions";
 
 const TYPE_LABEL = { absence: "欠席", makeup: "振替" } as const;
