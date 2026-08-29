@@ -1,0 +1,5 @@
+# ローカルで `npm run dev` する際、.dev.vars にコピーして値を入れる(.dev.varsはgit管理外)
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_PUBLISHABLE_KEY=
+ADMIN_PASSWORD=
