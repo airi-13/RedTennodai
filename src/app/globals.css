@@ -11,11 +11,18 @@
   --color-accent-soft:#F5D9CE;
   --color-accent-dark:#A22E11;
 
-  --color-present:#6E9C8C;
-  --color-absent:#A22E11;
+  /* Calendar status colors */
+  --color-present:#DCEEFF;
+  --color-absent:#FFE58A;
   --color-late:#C9932F;
   --color-makeup:#4C7FA3;
+  --color-juku:#E05A47;
+  --color-school:#DCEFD8;
 }
+
+/* Calendar event colors: override legacy inline colors until the event renderer is migrated. */
+button[style*="#FFF3CD"], button[style*="rgb(255, 243, 205)"] { background: var(--color-juku) !important; color: white !important; }
+button[style*="#E3EEFB"], button[style*="rgb(227, 238, 251)"] { background: var(--color-school) !important; color: var(--color-ink) !important; }
 
 body {
   background: var(--color-bg);

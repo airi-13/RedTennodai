@@ -1,9 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { AttendanceSlot, AttendanceStatus } from "@/lib/types";
 
-// 'YYYY-MM-DD' の日付文字列から 0=日〜6=土 を返す。
-// new Date('YYYY-MM-DD') はUTC扱いになりタイムゾーンによって曜日がずれるため、
-// 年月日を分解してローカルタイムで組み立てる。
 export function dayOfWeekFromDateString(date: string): number {
   const [y, m, d] = date.split("-").map(Number);
   return new Date(y, m - 1, d).getDay();
@@ -11,24 +8,13 @@ export function dayOfWeekFromDateString(date: string): number {
 
 async function studentNameMap(studentIds: number[]): Promise<Map<number, string>> {
   if (studentIds.length === 0) return new Map();
-  const { data, error } = await supabase
-    .from("students")
-    .select("id, name")
-    .in("id", studentIds);
+  const { data, error } = await supabase.from("students").select("id, name").in("id", studentIds);
   if (error) throw error;
   return new Map((data ?? []).map((s) => [s.id, s.name]));
 }
 
-// 指定日の出欠一覧を取得する。
-// 1. student_schedulesからその曜日の「予定」を取得
-// 2. attendance_recordsのその日の「実績」で上書き
-// 3. 予定にない実績(振替追加分)は追加で表示
-// 4. 他の日から振替先としてこの日を指定されている記録も「追加されたコマ」として表示
-export async function getAttendanceSlotsForDate(
-  date: string
-): Promise<AttendanceSlot[]> {
+export async function getAttendanceSlotsForDate(date: string): Promise<AttendanceSlot[]> {
   const dayOfWeek = dayOfWeekFromDateString(date);
-
   const [scheduleRes, recordRes, transferInRes] = await Promise.all([
     supabase
       .from("student_schedules")
@@ -43,14 +29,10 @@ export async function getAttendanceSlotsForDate(
   if (recordRes.error) throw recordRes.error;
   if (transferInRes.error) throw transferInRes.error;
 
-  const recordMap = new Map(
-    (recordRes.data ?? []).map((r) => [`${r.student_id}:${r.period_id}`, r])
-  );
-
+  const recordMap = new Map((recordRes.data ?? []).map((r) => [`${r.student_id}:${r.period_id}`, r]));
   const slots: AttendanceSlot[] = (scheduleRes.data ?? []).map((s: any) => {
-    const key = `${s.student_id}:${s.period_id}`;
-    const record = recordMap.get(key);
-    recordMap.delete(key); // マッチした分は消し、残りは予定外の追加分として後で処理する
+    const record = recordMap.get(`${s.student_id}:${s.period_id}`);
+    recordMap.delete(`${s.student_id}:${s.period_id}`);
     return {
       scheduleId: s.id,
       studentId: s.student_id,
@@ -62,10 +44,10 @@ export async function getAttendanceSlotsForDate(
       note: record ? record.note : null,
       makeupDate: record?.makeup_date ?? null,
       makeupPeriodId: record?.makeup_period_id ?? null,
+      makeupAttendanceStatus: record?.makeup_attendance_status ?? null,
     } satisfies AttendanceSlot;
   });
 
-  // 定期スケジュールに対応行がない出欠記録(手動追加分など)
   const extraRecords = [...recordMap.values()];
   const extraNames = await studentNameMap(extraRecords.map((r) => r.student_id));
   for (const r of extraRecords) {
@@ -80,10 +62,10 @@ export async function getAttendanceSlotsForDate(
       note: r.note,
       makeupDate: r.makeup_date,
       makeupPeriodId: r.makeup_period_id,
+      makeupAttendanceStatus: r.makeup_attendance_status ?? null,
     });
   }
 
-  // 他の日からの振替先としてこの日を指定されている記録(表示専用の追加コマ)
   const transferRecords = transferInRes.data ?? [];
   const transferNames = await studentNameMap(transferRecords.map((r) => r.student_id));
   for (const r of transferRecords) {
@@ -95,10 +77,12 @@ export async function getAttendanceSlotsForDate(
       periodId: r.makeup_period_id,
       subjectId: r.subject_id,
       attendanceRecordId: r.id,
-      status: r.status as AttendanceStatus,
+      // 振替授業側の出欠は元コマの記録とは独立して保持する。
+      status: (r.makeup_attendance_status as AttendanceStatus | null) ?? "makeup",
       note: r.note,
       makeupDate: r.makeup_date,
       makeupPeriodId: r.makeup_period_id,
+      makeupAttendanceStatus: r.makeup_attendance_status ?? null,
       isTransferAddition: true,
       transferFromDate: r.date,
       transferFromPeriodId: r.period_id,
@@ -117,47 +101,36 @@ export async function upsertAttendance(input: {
   note?: string | null;
   makeup_date?: string | null;
   makeup_period_id?: number | null;
+  makeup_attendance_status?: AttendanceStatus | null;
 }) {
+  const { error } = await supabase.from("attendance_records").upsert(input, { onConflict: "student_id,date,period_id" });
+  if (error) throw error;
+}
+
+export async function updateMakeupDestinationStatus(recordId: number, status: AttendanceStatus) {
   const { error } = await supabase
     .from("attendance_records")
-    .upsert(input, { onConflict: "student_id,date,period_id" });
+    .update({ makeup_attendance_status: status })
+    .eq("id", recordId)
+    .not("makeup_date", "is", null)
+    .not("makeup_period_id", "is", null);
   if (error) throw error;
 }
 
 export async function deleteAttendanceRecord(id: number) {
-  const { error } = await supabase
-    .from("attendance_records")
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.from("attendance_records").delete().eq("id", id);
   if (error) throw error;
 }
 
-// 生徒本人の月次カレンダー用: その月の出欠記録(元の日付分+振替先として追加された分)をまとめて取得
-export async function getAttendanceRecordsForStudentMonth(
-  studentId: number,
-  year: number,
-  month: number
-) {
+export async function getAttendanceRecordsForStudentMonth(studentId: number, year: number, month: number) {
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const end = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-
   const [byDate, byMakeupDate] = await Promise.all([
-    supabase
-      .from("attendance_records")
-      .select("*")
-      .eq("student_id", studentId)
-      .gte("date", start)
-      .lte("date", end),
-    supabase
-      .from("attendance_records")
-      .select("*")
-      .eq("student_id", studentId)
-      .gte("makeup_date", start)
-      .lte("makeup_date", end),
+    supabase.from("attendance_records").select("*").eq("student_id", studentId).gte("date", start).lte("date", end),
+    supabase.from("attendance_records").select("*").eq("student_id", studentId).gte("makeup_date", start).lte("makeup_date", end),
   ]);
   if (byDate.error) throw byDate.error;
   if (byMakeupDate.error) throw byMakeupDate.error;
-
   return { byDate: byDate.data ?? [], byMakeupDate: byMakeupDate.data ?? [] };
 }
