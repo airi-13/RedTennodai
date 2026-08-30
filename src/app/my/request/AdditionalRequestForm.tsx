@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { submitAdditionalRequestAction } from "./actions";
 
-type Textbook = { id: number; title: string };
+type Textbook = { id: string; title: string };
 type Schedule = { id: number; day_of_week: number; period_id: number; subject_id: number };
 type Period = { id: number; name: string };
 const DAYS = ["日", "月", "火", "水", "木", "金", "土"];
