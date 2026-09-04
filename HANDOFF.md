@@ -15,7 +15,8 @@ RED教室(個人経営の学習塾、生徒数は小学生〜高校生で最大5
 | 項目 | 値 |
 |---|---|
 | GitHubリポジトリ | https://github.com/airi-13/RedTennodai |
-| ホスティング | **Cloudflare Workers**(OpenNext経由)。2026-08-29にRenderから移行。デプロイ方法は`README.md`参照。CloudflareのアカウントID・プロジェクト名等はまだこのファイルに記録がない(ユーザー側でCloudflareアカウントを接続して初回デプロイした後、追記が必要) |
+| 本番URL | **https://red-attendance.iri130530.workers.dev/**(2026-09-02にCloudflareへのデプロイ完了、動作確認済み) |
+| ホスティング | **Cloudflare Workers**(OpenNext経由)。2026-08-29にRenderから移行、2026-09-02に実際にデプロイ・稼働確認済み。GitHubリポジトリと連携済みでpushのたびに自動デプロイされる |
 | 旧ホスティング(Render) | `red-attendance` (service ID: `srv-da44itk9v7es7396sks0`, workspace: `tea-d9k1vl942hec739tnh10`)。コードは`npm run build`/`npm run start`で引き続き動作するため残置しているが、今後はCloudflareが正とする方針 |
 | Supabaseプロジェクト | ID: `abxmytcbbmylvwxrwsqg` |
 
@@ -56,7 +57,6 @@ RED教室(個人経営の学習塾、生徒数は小学生〜高校生で最大5
 
 ## 未完了・次のステップ
 
-- **Cloudflareへの実デプロイが未完了**: コード側の対応(`wrangler.jsonc`/`open-next.config.ts`/OpenNextビルド確認)は完了しSupabaseへの接続もローカルビルドで検証済みだが、Claude側からはCloudflareのAPIに到達できない(ネットワーク許可リストに無い)ため、実際のCloudflareアカウントへの接続・初回デプロイは`README.md`の手順に沿ってユーザー側で行う必要がある。完了したら本ファイルの「本番URL」を追記すること
 - 学校マスタと既存生徒の紐付けは新規登録時のみ自動化されている(生徒編集で後から学校を変更するUIはまだ無い)
 - 週次バックアップ(Supabase → Google Drive)は`.github/workflows/supabase-backup.yml`として稼働中。**サービスアカウント方式ではなくOAuth方式**(個人のGoogle Driveに書き込むため)。GitHub Secretsは`SUPABASE_DB_URL` / `GDRIVE_CLIENT_ID` / `GDRIVE_CLIENT_SECRET` / `GDRIVE_REFRESH_TOKEN` / `GDRIVE_FOLDER_ID`の5つ。OAuth同意画面は「本番」公開必須(「テスト中」だとリフレッシュトークンが7日で失効する)。pg_dumpはSupabase側のバージョン(17系)に合わせて明示インストールしている。
 - 申請承認時の自動反映は実装済み(2026-08-25〜): `/requests`で承認すると、対象コマが指定されていれば`attendance_records`に自動反映され、生徒側`/my`のカレンダーにも即座に反映される(欠席→欠席表示、振替→元のコマに振替先を表示+振替先の日に追加コマとして表示)。対象コマが未指定の申請は自動反映されず、管理者が`/attendance`から手動入力する必要がある。
