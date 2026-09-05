@@ -75,6 +75,10 @@ export type AttendanceSlot = {
   isTransferAddition?: boolean;
   transferFromDate?: string | null;
   transferFromPeriodId?: number | null;
+  // 管理者がカレンダーから追加した単発授業(calendar_events)由来のスロットの場合に設定される。
+  // これが入っている場合、出欠の更新はattendance_recordsではなくcalendar_event_studentsに対して行う。
+  calendarEventId?: number | null;
+  calendarEventTitle?: string | null;
 };
 
 export type RequestType = "absence" | "makeup";
