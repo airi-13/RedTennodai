@@ -6,11 +6,45 @@ import { findOrCreateSchoolByName, deleteSchool } from "@/lib/data/schools";
 import { createSchoolEvent, deleteSchoolEvent } from "@/lib/data/school-events";
 import { createTodo, toggleTodoDone, deleteTodo } from "@/lib/data/admin-todos";
 import { createNotice, deleteNotice } from "@/lib/data/notices";
+import {
+  createCalendarEvent,
+  deleteCalendarEvent,
+  type CalendarEventType,
+  type CalendarEventVisibility,
+} from "@/lib/data/calendar-events";
 
 function refresh() {
   revalidatePath("/admin-calendar");
-  revalidatePath("/my");
   revalidatePath("/dashboard");
+  revalidatePath("/attendance");
+  revalidatePath("/my");
+}
+
+export async function createCalendarEventAction(input: {
+  eventType: CalendarEventType;
+  eventDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  periodId?: number | null;
+  subjectId?: number | null;
+  title: string;
+  note?: string | null;
+  visibility: CalendarEventVisibility;
+  studentIds?: number[];
+}) {
+  if (input.eventType === "lesson" && (!input.periodId || !input.subjectId)) {
+    throw new Error("単発授業にはコマと科目の指定が必要です。");
+  }
+  if (input.eventType === "lesson" && input.visibility !== "all" && (!input.studentIds || input.studentIds.length === 0)) {
+    throw new Error("単発授業は対象の生徒を1人以上選んでください。");
+  }
+  await createCalendarEvent(input);
+  refresh();
+}
+
+export async function deleteCalendarEventAction(id: number) {
+  await deleteCalendarEvent(id);
+  refresh();
 }
 
 export async function createNoticeAction(input: { title: string; body?: string }) {
