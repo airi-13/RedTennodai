@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { upsertAttendance, deleteAttendanceRecord, updateMakeupDestinationStatus } from "@/lib/data/attendance";
+import { setCalendarEventAttendance } from "@/lib/data/calendar-events";
 import { addSchedule } from "@/lib/data/schedules";
 import type { AttendanceStatus } from "@/lib/types";
 
@@ -15,7 +16,18 @@ export async function setAttendanceStatus(input: {
   makeupPeriodId?: number | null;
   isTransferAddition?: boolean;
   attendanceRecordId?: number | null;
+  calendarEventId?: number | null;
 }) {
+  if (input.calendarEventId) {
+    if (input.status === "makeup") {
+      throw new Error("単発授業では振替は選べません。");
+    }
+    await setCalendarEventAttendance(input.calendarEventId, input.studentId, input.status);
+    revalidatePath("/attendance");
+    revalidatePath("/my");
+    return;
+  }
+
   if (input.isTransferAddition) {
     if (!input.attendanceRecordId) throw new Error("振替授業の元記録が見つかりません。");
     if (input.status !== "absent") throw new Error("振替授業では欠席のみ登録できます。");
@@ -45,17 +57,6 @@ export async function setAttendanceStatus(input: {
 
 export async function clearAttendanceRecord(id: number) {
   await deleteAttendanceRecord(id);
-  revalidatePath("/attendance");
-}
-
-export async function addOneOffAttendance(input: {
-  studentId: number;
-  date: string;
-  periodId: number;
-  subjectId: number;
-  status: AttendanceStatus;
-}) {
-  await upsertAttendance({ student_id: input.studentId, date: input.date, period_id: input.periodId, subject_id: input.subjectId, status: input.status });
   revalidatePath("/attendance");
 }
 
