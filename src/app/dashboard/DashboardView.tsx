@@ -1,9 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { AdminCalendarDay } from "@/lib/data/calendar";
-import { toggleTodoAction } from "@/app/admin-calendar/actions";
+import type { Period, Subject, Student } from "@/lib/types";
+import type { School } from "@/lib/data/schools";
+import { toggleTodoAction, deleteCalendarEventAction } from "@/app/admin-calendar/actions";
+import { NewEventModal } from "./NewEventModal";
 
 function monthLabel(year: number, month: number) {
   return `${year}年${month}月`;
@@ -12,12 +15,21 @@ function monthLabel(year: number, month: number) {
 function itemStyle(item: AdminCalendarDay["items"][number]) {
   if (item.type === "school_event") return { background: "#E3EEFB" };
   if (item.type === "announcement") return { background: "#FFF3CD" };
+  if (item.type === "calendar_event") {
+    if (item.eventType === "lesson") return { background: "var(--color-accent)", color: "white" };
+    if (item.eventType === "teacher") return { background: "#E8E0F5" };
+    return { background: "#DDF3E4" };
+  }
   return { background: "var(--color-accent-soft)" };
 }
 
 function itemLabel(item: AdminCalendarDay["items"][number]) {
   if (item.type === "school_event") return `[${item.schoolName}] ${item.title}`;
   if (item.type === "announcement") return item.title;
+  if (item.type === "calendar_event") {
+    const prefix = item.eventType === "lesson" ? "授業" : item.eventType === "teacher" ? "予定" : "塾";
+    return `[${prefix}] ${item.timeRange ? `${item.timeRange} ` : ""}${item.title}`;
+  }
   return `TODO: ${item.content}`;
 }
 
@@ -25,12 +37,21 @@ export function DashboardView({
   year,
   month,
   days,
+  periods,
+  subjects,
+  students,
+  schools,
 }: {
   year: number;
   month: number;
   days: AdminCalendarDay[];
+  periods: Period[];
+  subjects: Subject[];
+  students: Student[];
+  schools: School[];
 }) {
   const [isPending, startTransition] = useTransition();
+  const [showNewEvent, setShowNewEvent] = useState(false);
   const firstWeekday = new Date(year, month - 1, 1).getDay();
   const leadingBlanks = Array.from({ length: firstWeekday });
   const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
@@ -40,10 +61,29 @@ export function DashboardView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="font-display text-lg font-bold">カレンダー(全体)</h1>
-        <Link href="/admin-calendar" className="text-sm underline">
-          休講・お知らせ・行事・TODOを編集 →
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowNewEvent(true)}
+            className="rounded-md px-3 py-1.5 text-sm font-medium text-white"
+            style={{ background: "var(--color-accent)" }}
+          >
+            ＋ 新規登録
+          </button>
+          <Link href="/admin-calendar" className="text-sm underline">
+            休講・お知らせ・行事・TODOを編集 →
+          </Link>
+        </div>
       </div>
+
+      {showNewEvent && (
+        <NewEventModal
+          periods={periods}
+          subjects={subjects}
+          students={students}
+          schools={schools}
+          onClose={() => setShowNewEvent(false)}
+        />
+      )}
 
       <div className="rounded-lg border-2 border-[var(--color-ink)] bg-[var(--color-surface)] p-4">
         <div className="mb-3 flex items-center justify-center gap-4">
@@ -72,10 +112,26 @@ export function DashboardView({
             塾のお知らせ
           </span>
           <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-accent)" }} />
+            単発授業
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#E8E0F5" }} />
+            先生の予定
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#DDF3E4" }} />
+            塾の予定
+          </span>
+          <span className="flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-accent-soft)" }} />
             自分のTODO
           </span>
         </div>
+
+        <p className="mb-2 text-[10px] text-[var(--color-ink-soft)]">
+          単発授業・先生の予定・塾の予定はクリックすると削除できます。
+        </p>
 
         <div className="grid grid-cols-7 gap-1 text-center text-xs text-[var(--color-ink-soft)]">
           {["日", "月", "火", "水", "木", "金", "土"].map((d) => (
@@ -107,12 +163,18 @@ export function DashboardView({
                       ...itemStyle(item),
                       textDecoration:
                         item.type === "todo" && item.done ? "line-through" : undefined,
-                      cursor: item.type === "todo" ? "pointer" : undefined,
+                      cursor: item.type === "todo" || item.type === "calendar_event" ? "pointer" : undefined,
                     }}
                     title={itemLabel(item)}
                     onClick={() => {
-                      if (item.type !== "todo") return;
-                      startTransition(() => toggleTodoAction(item.id, !item.done));
+                      if (item.type === "todo") {
+                        startTransition(() => toggleTodoAction(item.id, !item.done));
+                        return;
+                      }
+                      if (item.type === "calendar_event") {
+                        startTransition(() => deleteCalendarEventAction(item.id));
+                        return;
+                      }
                     }}
                   >
                     {itemLabel(item)}
