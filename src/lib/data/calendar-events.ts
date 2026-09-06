@@ -150,7 +150,7 @@ export async function listCalendarEventsForStudentMonth(
 }
 
 // 出欠登録画面(/attendance)向け: その日のlessonタイプの予定と対象生徒一覧
-export async function listLessonEventsForDate(date: string): Promise
+export async function listLessonEventsForDate(date: string): Promise<
   {
     event: CalendarEvent;
     students: CalendarEventStudentLink[];

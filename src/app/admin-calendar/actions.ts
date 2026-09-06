@@ -6,6 +6,8 @@ import { findOrCreateSchoolByName, deleteSchool } from "@/lib/data/schools";
 import { createSchoolEvent, deleteSchoolEvent } from "@/lib/data/school-events";
 import { createTodo, toggleTodoDone, deleteTodo } from "@/lib/data/admin-todos";
 import { createNotice, deleteNotice } from "@/lib/data/notices";
+import { createCalendarEvent, deleteCalendarEvent } from "@/lib/data/calendar-events";
+import type { CalendarEventType, CalendarEventVisibility } from "@/lib/data/calendar-events";
 
 function refresh() {
   revalidatePath("/admin-calendar");
@@ -80,4 +82,26 @@ export async function toggleTodoAction(id: string, done: boolean) {
 export async function deleteTodoAction(id: string) {
   await deleteTodo(id);
   refresh();
+}
+
+export async function createCalendarEventAction(input: {
+  eventType: CalendarEventType;
+  eventDate: string;
+  startTime?: string;
+  endTime?: string;
+  periodId?: number;
+  subjectId?: number;
+  title: string;
+  note?: string;
+  visibility: CalendarEventVisibility;
+  studentIds?: number[];
+}) {
+  await createCalendarEvent(input);
+  refresh();
+  revalidatePath("/attendance");
+}
+export async function deleteCalendarEventAction(id: number) {
+  await deleteCalendarEvent(id);
+  refresh();
+  revalidatePath("/attendance");
 }
