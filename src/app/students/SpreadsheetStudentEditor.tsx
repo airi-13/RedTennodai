@@ -4,14 +4,19 @@ import { useMemo, useState } from "react";
 
 const COLUMNS = ["生徒ID", "性", "姓", "名", "ｾｲ", "ﾒｲ", "学校", "学年", "Pass", "授業科目", "授業数", "授業コマ"];
 
-type Props = { onRegister?: (rows: string[][]) => Promise<void> };
+type Props = {
+  onRegister?: (rows: string[][]) => Promise<void>;
+  // 既存生徒の編集モード用。指定すると保存ボタンの文言やPass欄の説明が編集向けに変わる。
+  mode?: "create" | "edit";
+  initialRows?: string[][];
+};
 
 function parseClipboard(text: string) {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter((line) => line.length > 0).map((line) => line.split("\t"));
 }
 
-export function SpreadsheetStudentEditor({ onRegister }: Props) {
-  const [rows, setRows] = useState<string[][]>([Array(COLUMNS.length).fill("")]);
+export function SpreadsheetStudentEditor({ onRegister, mode = "create", initialRows }: Props) {
+  const [rows, setRows] = useState<string[][]>(initialRows?.length ? initialRows : [Array(COLUMNS.length).fill("")]);
   const [message, setMessage] = useState<string | null>(null);
 
   const normalized = useMemo(() => rows.map((row) => [...row, ...Array(Math.max(0, COLUMNS.length - row.length)).fill("")].slice(0, COLUMNS.length)), [rows]);
@@ -38,44 +43,63 @@ export function SpreadsheetStudentEditor({ onRegister }: Props) {
   function addRow() { setRows((current) => [...current, []]); }
   function removeRow(index: number) { setRows((current) => current.filter((_, i) => i !== index)); }
 
-    async function register() {
+  async function register() {
     const data = normalized.filter((row) => row.some((v) => v.trim()));
-    if (!data.length) return setMessage("登録するデータがありません");
-    const invalid = data.findIndex((row) => !row[0].trim() || !row[3].trim() || !row[8].trim());
-    if (invalid >= 0) return setMessage(`${invalid + 1}行目：生徒ID・名・Passは必須です`);
+    if (!data.length) return setMessage(mode === "edit" ? "保存する行がありません" : "登録するデータがありません");
+    const invalid = data.findIndex((row) => !row[0].trim() || !row[3].trim() || (mode === "create" && !row[8].trim()));
+    if (invalid >= 0) {
+      return setMessage(
+        mode === "edit"
+          ? `${invalid + 1}行目：生徒ID・名は必須です`
+          : `${invalid + 1}行目：生徒ID・名・Passは必須です`
+      );
+    }
     if (onRegister) {
       try {
         await onRegister(data);
-        setMessage(`${data.length}件を登録しました`);
+        setMessage(mode === "edit" ? `${data.length}件を保存しました` : `${data.length}件を登録しました`);
       } catch {
-        // 詳細なエラーメッセージは呼び出し元(BulkImport側)が表示するため、ここでは上書きしない
+        // 詳細なエラーメッセージは呼び出し元(BulkImport/StudentSpreadsheet側)が表示するため、ここでは上書きしない
         setMessage(null);
       }
       return;
     }
-    setMessage(`${data.length}件を登録しました`);
+    setMessage(mode === "edit" ? `${data.length}件を保存しました` : `${data.length}件を登録しました`);
   }
+
+  const passLabel = mode === "edit" ? "Pass(変更する場合のみ)" : "Pass";
 
   return (
     <section className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-medium">生徒を表で入力</h2>
-          <p className="mt-1 text-xs text-[var(--color-ink-soft)]">Excel / Googleスプレッドシートから範囲をコピーして、左上セルへ貼り付けできます。</p>
+          <h2 className="font-medium">{mode === "edit" ? "生徒一覧を表で編集" : "生徒を表で入力"}</h2>
+          <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
+            Excel / Googleスプレッドシートから範囲をコピーして、左上セルへ貼り付けできます。
+            {mode === "edit" && "Pass欄は空欄のままにすると変更されません。授業科目・授業コマの両方が空欄の行は、現在のスケジュールを維持します。"}
+          </p>
         </div>
-        <button onClick={register} className="rounded-md px-3 py-1.5 text-sm font-medium text-white" style={{ background: "var(--color-accent)" }}>登録</button>
+        <button onClick={register} className="rounded-md px-3 py-1.5 text-sm font-medium text-white" style={{ background: "var(--color-accent)" }}>
+          {mode === "edit" ? "保存" : "登録"}
+        </button>
       </div>
       <div className="overflow-auto rounded-md border border-[var(--color-border)]">
         <table className="min-w-[1200px] border-collapse text-xs">
           <thead className="sticky top-0 bg-[var(--color-bg)]">
-            <tr>{COLUMNS.map((column) => <th key={column} className="whitespace-nowrap border-b border-r border-[var(--color-border)] px-2 py-2 text-left">{column}</th>)}<th className="w-12 border-b border-[var(--color-border)]" /></tr>
+            <tr>{COLUMNS.map((column) => <th key={column} className="whitespace-nowrap border-b border-r border-[var(--color-border)] px-2 py-2 text-left">{column === "Pass" ? passLabel : column}</th>)}<th className="w-12 border-b border-[var(--color-border)]" /></tr>
           </thead>
           <tbody>
             {normalized.map((row, r) => (
               <tr key={r}>
                 {COLUMNS.map((_, c) => (
                   <td key={c} className="border-b border-r border-[var(--color-border)] p-0">
-                    <input value={row[c] ?? ""} onChange={(e) => updateCell(r, c, e.target.value)} onPaste={(e) => { if (e.clipboardData.getData("text").includes("\t") || e.clipboardData.getData("text").includes("\n")) { e.preventDefault(); pasteAt(r, c, e.clipboardData.getData("text")); } }} className="w-full min-w-[80px] bg-transparent px-2 py-2 outline-none focus:bg-[var(--color-bg)]" />
+                    <input
+                      value={row[c] ?? ""}
+                      onChange={(e) => updateCell(r, c, e.target.value)}
+                      placeholder={c === 8 && mode === "edit" ? "変更なし" : undefined}
+                      onPaste={(e) => { if (e.clipboardData.getData("text").includes("\t") || e.clipboardData.getData("text").includes("\n")) { e.preventDefault(); pasteAt(r, c, e.clipboardData.getData("text")); } }}
+                      className="w-full min-w-[80px] bg-transparent px-2 py-2 outline-none focus:bg-[var(--color-bg)]"
+                    />
                   </td>
                 ))}
                 <td className="border-b border-[var(--color-border)] px-1"><button onClick={() => removeRow(r)} className="text-[var(--color-ink-soft)]">削除</button></td>
