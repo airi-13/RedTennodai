@@ -38,12 +38,21 @@ export function SpreadsheetStudentEditor({ onRegister }: Props) {
   function addRow() { setRows((current) => [...current, []]); }
   function removeRow(index: number) { setRows((current) => current.filter((_, i) => i !== index)); }
 
-  async function register() {
+    async function register() {
     const data = normalized.filter((row) => row.some((v) => v.trim()));
     if (!data.length) return setMessage("登録するデータがありません");
     const invalid = data.findIndex((row) => !row[0].trim() || !row[3].trim() || !row[8].trim());
     if (invalid >= 0) return setMessage(`${invalid + 1}行目：生徒ID・名・Passは必須です`);
-    if (onRegister) await onRegister(data);
+    if (onRegister) {
+      try {
+        await onRegister(data);
+        setMessage(`${data.length}件を登録しました`);
+      } catch {
+        // 詳細なエラーメッセージは呼び出し元(BulkImport側)が表示するため、ここでは上書きしない
+        setMessage(null);
+      }
+      return;
+    }
     setMessage(`${data.length}件を登録しました`);
   }
 
