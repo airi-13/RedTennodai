@@ -10,30 +10,30 @@ export function BulkImport() {
 
   async function register(rows: string[][]) {
     setMessage(null);
-    const gradeMap: Record<string, string> = { 小: "小学生", 中: "中学生", 高: "高校生" };
-    const payload = rows.map((row, index) => {
-      const gradeText = row[7]?.trim() ?? "";
-      const m = gradeText.match(/^(小|中|高)(\d+)$/);
-      if (!m) throw new Error(`${index + 1}行目：学年「${gradeText}」は「高2」「中3」「小6」の形式で入力してください`);
-      if (!row[0]?.trim() || !row[2]?.trim() || !row[3]?.trim() || !row[8]?.trim()) {
-        throw new Error(`${index + 1}行目：生徒ID・姓・名・Passは必須です`);
-      }
-      return {
-        loginId: row[0].trim(),
-        gender: row[1]?.trim() || null,
-        name: `${row[2].trim()} ${row[3].trim()}`,
-        nameKana: `${row[4]?.trim() ?? ""} ${row[5]?.trim() ?? ""}`.trim() || null,
-        schoolName: row[6]?.trim() || null,
-        schoolLevel: gradeMap[m[1]],
-        grade: Number(m[2]),
-        password: row[8].trim(),
-        subjectsText: row[9]?.trim() || null,
-        lessonCountText: row[10]?.trim() || null,
-        scheduleText: row[11]?.trim() || null,
-      };
-    });
-
     try {
+      const gradeMap: Record<string, string> = { 小: "小学生", 中: "中学生", 高: "高校生" };
+      const payload = rows.map((row, index) => {
+        const gradeText = row[7]?.trim() ?? "";
+        const m = gradeText.match(/^(小|中|高)(\d+)$/);
+        if (!m) throw new Error(`${index + 1}行目：学年「${gradeText}」は「高2」「中3」「小6」の形式で入力してください`);
+        if (!row[0]?.trim() || !row[2]?.trim() || !row[3]?.trim() || !row[8]?.trim()) {
+          throw new Error(`${index + 1}行目：生徒ID・姓・名・Passは必須です`);
+        }
+        return {
+          loginId: row[0].trim(),
+          gender: row[1]?.trim() || null,
+          name: `${row[2].trim()} ${row[3].trim()}`,
+          nameKana: `${row[4]?.trim() ?? ""} ${row[5]?.trim() ?? ""}`.trim() || null,
+          schoolName: row[6]?.trim() || null,
+          schoolLevel: gradeMap[m[1]],
+          grade: Number(m[2]),
+          password: row[8].trim(),
+          subjectsText: row[9]?.trim() || null,
+          lessonCountText: row[10]?.trim() || null,
+          scheduleText: row[11]?.trim() || null,
+        };
+      });
+
       const results = await bulkCreateStudentsAction(payload);
       const success = results.filter((r) => r.ok).length;
       const failed = results.length - success;
