@@ -8,11 +8,16 @@ import {
   removeScheduleAction,
   setStudentActiveAction,
   updateStudentAction,
+  bulkUpdateStudentsAction,
+  deleteStudentAction,
 } from "./actions";
 import { isValidEightyMinutePair } from "@/lib/schedule-rules";
 import { BulkImport } from "./BulkImport";
+import { SpreadsheetStudentEditor } from "./SpreadsheetStudentEditor";
+import { scheduleToText } from "@/lib/schedule-text-parser";
 
 const DOW_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
+const SCHOOL_LEVEL_PREFIX: Record<string, string> = { 小学生: "小", 中学生: "中", 高校生: "高" };
 
 // 小5以上(小学5・6年、中学、高校の全学年)は80分授業という運用ルール
 function needsEightyMinutes(schoolLevel: string | null, grade: number | null) {
@@ -48,6 +53,69 @@ export function StudentsView({
     (s) => showInactive || s.status === "active"
   );
 
+  const subjectById = useMemo(() => new Map(subjects.map((s) => [s.id, s.name])), [subjects]);
+  const periodNameById = useMemo(() => new Map(periods.map((p) => [p.id, p.name])), [periods]);
+
+  const editTableRows = useMemo(
+    () =>
+      visibleStudents.map((s) => {
+        const nameParts = s.name.trim().split(/\s+/);
+        const kanaParts = (s.name_kana ?? "").trim().split(/\s+/).filter(Boolean);
+        const studentSchedules = schedulesByStudent.get(s.id) ?? [];
+        const subjectNames = [
+          ...new Set(studentSchedules.map((sc) => subjectById.get(sc.subject_id)).filter(Boolean) as string[]),
+        ];
+        const gradeText = s.school_level && SCHOOL_LEVEL_PREFIX[s.school_level] && s.grade
+          ? `${SCHOOL_LEVEL_PREFIX[s.school_level]}${s.grade}`
+          : "";
+        return [
+          s.login_id ?? "",
+          s.gender ?? "",
+          nameParts[0] ?? "",
+          nameParts.slice(1).join(" "),
+          kanaParts[0] ?? "",
+          kanaParts.slice(1).join(" "),
+          s.school_name ?? "",
+          gradeText,
+          "",
+          subjectNames.join(","),
+          "",
+          scheduleToText(studentSchedules, periodNameById),
+        ];
+      }),
+    [visibleStudents, schedulesByStudent, subjectById, periodNameById]
+  );
+
+  async function saveEditedStudents(rows: string[][]) {
+    const gradeMap: Record<string, string> = { 小: "小学生", 中: "中学生", 高: "高校生" };
+    const payload = rows.map((row, index) => {
+      const student = visibleStudents[index];
+      if (!student) throw new Error(`${index + 1}行目：対象の生徒が見つかりません(行を追加・削除した場合は表の再読み込みが必要です)`);
+      const gradeText = row[7]?.trim() ?? "";
+      const m = gradeText.match(/^(小|中|高)(\d+)$/);
+      if (!m) throw new Error(`${index + 1}行目：学年「${gradeText}」は「高2」「中3」「小6」の形式で入力してください`);
+      return {
+        studentId: student.id,
+        loginId: student.login_id ?? "",
+        gender: row[1]?.trim() || null,
+        name: `${row[2].trim()} ${row[3].trim()}`.trim(),
+        nameKana: `${row[4]?.trim() ?? ""} ${row[5]?.trim() ?? ""}`.trim() || null,
+        schoolName: row[6]?.trim() || null,
+        schoolLevel: gradeMap[m[1]],
+        grade: Number(m[2]),
+        password: row[8]?.trim() || null,
+        subjectsText: row[9]?.trim() || null,
+        lessonCountText: row[10]?.trim() || null,
+        scheduleText: row[11]?.trim() || null,
+      };
+    });
+    const results = await bulkUpdateStudentsAction(payload);
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length > 0) {
+      throw new Error(`${failed.length}件のエラー: ${failed.map((f) => f.error).join(" / ")}`);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -58,12 +126,21 @@ export function StudentsView({
             checked={showInactive}
             onChange={(e) => setShowInactive(e.target.checked)}
           />
-          休会中も表示
+          退塾済みも表示
         </label>
       </div>
 
       <BulkImport />
       <AddStudentForm />
+
+      {visibleStudents.length > 0 && (
+        <SpreadsheetStudentEditor
+          key={visibleStudents.map((s) => s.id).join(",")}
+          mode="edit"
+          initialRows={editTableRows}
+          onRegister={saveEditedStudents}
+        />
+      )}
 
       <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
         {visibleStudents.map((student) => (
@@ -250,7 +327,7 @@ function StudentRow({
           </span>
           {student.status === "inactive" && (
             <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
-              休会中
+              退塾済み
             </span>
           )}
         </button>
@@ -269,7 +346,7 @@ function StudentRow({
           }
           className="text-xs text-[var(--color-ink-soft)] underline"
         >
-          {student.status === "active" ? "休会にする" : "復会にする"}
+          {student.status === "active" ? "退塾にする" : "復帰させる"}
         </button>
       </div>
 
@@ -307,6 +384,7 @@ function EditStudentForm({
   const [grade, setGrade] = useState(student.grade ?? 1);
   const [note, setNote] = useState(student.note ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function submit() {
     if (!name.trim()) return;
@@ -324,6 +402,19 @@ function EditStudentForm({
         onDone();
       } catch (e: any) {
         setError(e?.message ?? "更新に失敗しました");
+      }
+    });
+  }
+
+  function remove() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteStudentAction(student.id);
+        onDone();
+      } catch (e: any) {
+        setError(e?.message ?? "削除に失敗しました");
+        setConfirmingDelete(false);
       }
     });
   }
@@ -382,22 +473,56 @@ function EditStudentForm({
           className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
         />
       </Field>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={submit}
-          disabled={isPending || !name.trim()}
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--color-accent)" }}
-        >
-          保存
-        </button>
-        <button
-          onClick={onDone}
-          disabled={isPending}
-          className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-50"
-        >
-          キャンセル
-        </button>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={submit}
+            disabled={isPending || !name.trim()}
+            className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            style={{ background: "var(--color-accent)" }}
+          >
+            保存
+          </button>
+          <button
+            onClick={onDone}
+            disabled={isPending}
+            className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-50"
+          >
+            キャンセル
+          </button>
+        </div>
+
+        {!confirmingDelete ? (
+          <button
+            onClick={() => setConfirmingDelete(true)}
+            disabled={isPending}
+            className="text-xs underline"
+            style={{ color: "var(--color-absent)" }}
+          >
+            この生徒を削除する
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-xs" style={{ color: "var(--color-absent)" }}>
+              本当に削除しますか？(出欠・スケジュール等も全て削除され、元に戻せません)
+            </span>
+            <button
+              onClick={remove}
+              disabled={isPending}
+              className="rounded-md px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+              style={{ background: "var(--color-absent)" }}
+            >
+              削除する
+            </button>
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              disabled={isPending}
+              className="text-xs underline"
+            >
+              やめる
+            </button>
+          </div>
+        )}
       </div>
       {error && (
         <p className="text-xs" style={{ color: "var(--color-absent)" }}>
