@@ -1,68 +1,93 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { studentLogoutAction } from "@/app/login/actions";
-import { adminLogoutAction } from "@/app/admin-login/actions";
+import { useMemo, useState, useTransition } from "react";
+import type { AttendanceRequestWithStudent, Period } from "@/lib/types";
+import type { StudentRequest } from "@/lib/data/student-request-types";
+import { ADDITIONAL_REQUEST_LABEL } from "@/lib/data/student-request-types";
+import { approveRequestAction, rejectRequestAction, cancelApprovedRequestAction, approveStudentRequestAction, rejectStudentRequestAction } from "./actions";
 
-const STUDENT_SIDE = ["/my", "/login"];
-const ADMIN_SIDE = [
-  "/attendance",
-  "/students",
-  "/requests",
-  "/admin-calendar",
-  "/materials",
-  "/dashboard",
-];
+const TYPE_LABEL = { absence: "欠席", makeup: "振替" } as const;
+const STATUS_LABEL = { pending: "確認待ち", approved: "登録済み", rejected: "取り消し済み" } as const;
+const DAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
-const adminLinks = [
-  { href: "/dashboard", label: "カレンダー" },
-  { href: "/attendance", label: "出欠入力" },
-  { href: "/students", label: "生徒管理" },
-  { href: "/requests", label: "申請" },
-  { href: "/admin-calendar", label: "カレンダー管理" },
-  { href: "/materials", label: "教材・料金" },
-];
+function todayString() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+function weeksAgoString(weeks: number) {
+  const now = new Date();
+  now.setDate(now.getDate() - weeks * 7);
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
-const studentLinks = [
-  { href: "/my", label: "マイページ" },
-  { href: "/my/history", label: "授業履歴" },
-  { href: "/my/textbooks", label: "テキスト" },
-  { href: "/my/pricing", label: "費用シミュレーション" },
-  { href: "/my/request", label: "申請" },
-];
+export function RequestsView({ requests, studentRequests, periods }: { requests: AttendanceRequestWithStudent[]; studentRequests: StudentRequest[]; periods: Period[] }) {
+  const periodById = useMemo(() => new Map(periods.map((p) => [p.id, p.name])), [periods]);
+  const pending = requests.filter((r) => r.status === "pending");
+  const processedAll = requests.filter((r) => r.status !== "pending");
+  const additionalPending = studentRequests.filter((r) => r.status === "pending");
+  const additionalProcessedAll = studentRequests.filter((r) => r.status !== "pending");
 
-export function HeaderNav() {
-  const pathname = usePathname();
-  const isStudentSide = STUDENT_SIDE.some((p) => pathname.startsWith(p));
-  const isAdminSide = ADMIN_SIDE.some((p) => pathname.startsWith(p));
+  // 履歴の表示期間(デフォルト直近4週間)
+  const [historyFrom, setHistoryFrom] = useState(weeksAgoString(4));
+  const [historyTo, setHistoryTo] = useState(todayString());
 
-  if (!isStudentSide && !isAdminSide) return null;
-
-  const links = isStudentSide ? studentLinks : adminLinks;
-
-  return (
-    <nav className="flex flex-1 flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap gap-4 text-sm">
-        {links.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className={
-              pathname === l.href
-                ? "font-bold text-[var(--color-accent)]"
-                : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
-            }
-          >
-            {l.label}
-          </Link>
-        ))}
-      </div>
-      <form action={isStudentSide ? studentLogoutAction : adminLogoutAction}>
-        <button className="text-xs text-[var(--color-ink-soft)] underline">
-          ログアウト
-        </button>
-      </form>
-    </nav>
+  const processed = useMemo(
+    () => processedAll.filter((r) => r.requested_at.slice(0, 10) >= historyFrom && r.requested_at.slice(0, 10) <= historyTo),
+    [processedAll, historyFrom, historyTo]
   );
+  const additionalProcessed = useMemo(
+    () => additionalProcessedAll.filter((r) => r.requested_at.slice(0, 10) >= historyFrom && r.requested_at.slice(0, 10) <= historyTo),
+    [additionalProcessedAll, historyFrom, historyTo]
+  );
+
+  return <div className="space-y-8">
+    <div><h1 className="text-lg font-semibold">申請</h1><p className="mt-1 text-sm text-[var(--color-ink-soft)]">生徒からの各種申請を確認・処理します。</p></div>
+    <section className="space-y-3"><h2 className="text-sm font-medium text-[var(--color-ink-soft)]">各種申請（確認待ち・{additionalPending.length}件）</h2>{additionalPending.length === 0 ? <p className="text-sm text-[var(--color-ink-soft)]">ありません</p> : <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">{additionalPending.map((r) => <AdditionalRequestRow key={r.id} request={r} periods={periods} />)}</ul>}</section>
+    <section className="space-y-3"><h2 className="text-sm font-medium text-[var(--color-ink-soft)]">欠席・振替（確認待ち・{pending.length}件）</h2>{pending.length === 0 ? <p className="text-sm text-[var(--color-ink-soft)]">ありません</p> : <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">{pending.map((r) => <RequestRow key={r.id} request={r} periodById={periodById} actionable />)}</ul>}</section>
+
+    <section className="space-y-3 border-t border-[var(--color-border)] pt-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <h2 className="text-sm font-medium text-[var(--color-ink-soft)]">履歴の表示期間</h2>
+        <div className="flex flex-wrap items-end gap-2 text-sm">
+          <label className="flex flex-col gap-1 text-xs text-[var(--color-ink-soft)]">
+            開始日
+            <input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-[var(--color-ink-soft)]">
+            終了日
+            <input type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />
+          </label>
+          <button onClick={() => { setHistoryFrom(weeksAgoString(4)); setHistoryTo(todayString()); }} className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs">
+            直近4週間に戻す
+          </button>
+        </div>
+      </div>
+
+      <section className="space-y-3"><h3 className="text-sm font-medium text-[var(--color-ink-soft)]">各種申請の履歴（{additionalProcessed.length}件）</h3>{additionalProcessed.length === 0 ? <p className="text-sm text-[var(--color-ink-soft)]">この期間の履歴はありません</p> : <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">{additionalProcessed.map((r) => <AdditionalRequestRow key={r.id} request={r} periods={periods} />)}</ul>}</section>
+      <section className="space-y-3"><h3 className="text-sm font-medium text-[var(--color-ink-soft)]">欠席・振替の履歴（{processed.length}件）</h3>{processed.length === 0 ? <p className="text-sm text-[var(--color-ink-soft)]">この期間の履歴はありません</p> : <ul className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">{processed.map((r) => <RequestRow key={r.id} request={r} periodById={periodById} actionable={false} />)}</ul>}</section>
+    </section>
+  </div>;
+}
+
+function AdditionalRequestRow({ request, periods }: { request: StudentRequest; periods: Period[] }) {
+  const [isPending, startTransition] = useTransition();
+  const [resultMsg, setResultMsg] = useState<string | null>(null);
+  const d = request.details;
+  const detail = request.request_type === "textbook_purchase"
+    ? `テキスト: ${d.textbook_title ?? `ID:${d.textbook_id ?? "-"}`} ／ ${d.quantity ?? "1"}冊`
+    : request.request_type === "interview"
+      ? `希望日: ${d.preferred_date ?? "-"} ／ ${d.preferred_time ?? "-"}`
+      : request.request_type === "lesson_count_change"
+        ? `希望週: ${d.desired_count ?? "-"}コマ`
+        : `変更元: ${DAYS[Number(d.current_day_of_week)] ?? "-"}曜 ${d.current_period_name || periodName(periods, d.current_period_id)} ／ 変更後: ${DAYS[Number(d.desired_day_of_week)] ?? "-"}曜 ${periodName(periods, d.desired_period_id)}`;
+
+  return <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><div className="flex items-center gap-2"><span className="font-medium">{request.studentName}</span><span className="rounded-full bg-[var(--color-accent-soft)] px-2 py-0.5 text-xs text-[var(--color-accent)]">{ADDITIONAL_REQUEST_LABEL[request.request_type]}</span></div><p className="mt-1 text-sm text-[var(--color-ink-soft)]">{detail}</p>{request.reason && <p className="mt-1 text-sm text-[var(--color-ink-soft)]">備考: {request.reason}</p>}</div><div className="flex flex-col items-end gap-1">{request.status === "pending" ? <div className="flex gap-2"><button disabled={isPending} onClick={() => startTransition(async () => { await approveStudentRequestAction(request.id); setResultMsg("承認しました"); })} className="rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50" style={{ background: "var(--color-present)" }}>承認</button><button disabled={isPending} onClick={() => startTransition(async () => { await rejectStudentRequestAction(request.id); setResultMsg("却下しました"); })} className="rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50" style={{ borderColor: "var(--color-absent)", color: "var(--color-absent)" }}>却下</button></div> : <span className="text-xs text-[var(--color-ink-soft)]">{STATUS_LABEL[request.status]}</span>}{resultMsg && <span className="text-[10px] text-[var(--color-ink-soft)]">{resultMsg}</span>}</div></li>;
+}
+
+function periodName(periods: Period[], id?: string) { return periods.find((p) => p.id === Number(id))?.name ?? "-"; }
+
+function RequestRow({ request, periodById, actionable }: { request: AttendanceRequestWithStudent; periodById: Map<number, string>; actionable: boolean }) {
+  const [isPending, startTransition] = useTransition();
+  const [resultMsg, setResultMsg] = useState<string | null>(null);
+  return <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div><div className="flex items-center gap-2"><span className="font-medium">{request.studentName}</span><span className="rounded-full bg-[var(--color-accent-soft)] px-2 py-0.5 text-xs text-[var(--color-accent)]">{TYPE_LABEL[request.request_type]}</span></div><p className="mt-1 text-sm text-[var(--color-ink-soft)]">対象: {request.target_date}{request.target_period_id && ` ${periodById.get(request.target_period_id) ?? ""}`}{request.request_type === "makeup" && request.makeup_date && <> → 振替先: {request.makeup_date} {request.makeup_period_id && periodById.get(request.makeup_period_id)}</>}</p>{request.reason && <p className="mt-1 text-sm text-[var(--color-ink-soft)]">理由: {request.reason}</p>}</div><div className="flex flex-col items-end gap-1">{actionable ? <div className="flex gap-2"><button disabled={isPending} onClick={() => startTransition(async () => { const res = await approveRequestAction(request.id); setResultMsg(res.reflected ? "承認し、出欠にも反映しました" : "承認しました（出欠には未反映）"); })} className="rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50" style={{ background: "var(--color-present)" }}>承認</button><button disabled={isPending} onClick={() => startTransition(async () => { await rejectRequestAction(request.id); setResultMsg("却下しました"); })} className="rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50" style={{ borderColor: "var(--color-absent)", color: "var(--color-absent)" }}>却下</button></div> : request.status === "approved" ? <button disabled={isPending} onClick={() => startTransition(async () => { await cancelApprovedRequestAction(request.id); setResultMsg("取り消しました"); })} className="rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50" style={{ borderColor: "var(--color-absent)", color: "var(--color-absent)" }}>取り消す</button> : <span className="text-xs text-[var(--color-ink-soft)]">{STATUS_LABEL[request.status]}</span>}{resultMsg && <span className="max-w-[16rem] text-right text-[10px] text-[var(--color-ink-soft)]">{resultMsg}</span>}</div></li>;
 }
