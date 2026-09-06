@@ -92,11 +92,12 @@ CREATE TRIGGER trg_subjects_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 INSERT INTO subjects (code, name, sort_order) VALUES
-  ('M', '数学', 1),
-  ('E', '英語', 2),
-  ('Q', 'QUREO', 3),
-  ('J', 'Japanese', 4),
-  ('D', 'DOJO', 5);
+  ('E', '英語', 1),
+  ('J', '国語', 2),
+  ('M', '数学', 3),
+  ('R', '理科', 4),
+  ('SH', '社会', 5),
+  ('Q', 'QUREO', 6);
 
 -- =====================================================
 -- 4. students（生徒）
