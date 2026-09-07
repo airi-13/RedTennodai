@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { AttendanceSlot, AttendanceStatus } from "@/lib/types";
+import { listLessonEventsForDate } from "@/lib/data/calendar-events";
 
 export function dayOfWeekFromDateString(date: string): number {
   const [y, m, d] = date.split("-").map(Number);
@@ -87,6 +88,27 @@ export async function getAttendanceSlotsForDate(date: string): Promise<Attendanc
       transferFromDate: r.date,
       transferFromPeriodId: r.period_id,
     });
+  }
+
+  const lessonEvents = await listLessonEventsForDate(date);
+  for (const { event, students } of lessonEvents) {
+    if (!event.period_id) continue;
+    for (const link of students) {
+      slots.push({
+        scheduleId: null,
+        studentId: link.student_id,
+        studentName: link.studentName,
+        periodId: event.period_id,
+        subjectId: event.subject_id ?? 0,
+        attendanceRecordId: null,
+        status: link.attendance_status,
+        note: event.note,
+        makeupDate: null,
+        makeupPeriodId: null,
+        calendarEventId: event.id,
+        calendarEventTitle: event.title,
+      });
+    }
   }
 
   return slots;

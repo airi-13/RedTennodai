@@ -10,9 +10,14 @@ import {
 import { listSchoolEventsForMonth, listAllSchoolEventsForMonth } from "@/lib/data/school-events";
 import { listTodosForMonth } from "@/lib/data/admin-todos";
 import { getAttendanceRecordsForStudentMonth } from "@/lib/data/attendance";
+import {
+  listCalendarEventsForMonth,
+  listCalendarEventsForStudentMonth,
+  type CalendarEventForStudent,
+} from "@/lib/data/calendar-events";
 import type { AttendanceStatus } from "@/lib/types";
 
-export type LessonDisplayStatus = "scheduled" | AttendanceStatus | "makeup_added";
+export type LessonDisplayStatus = "scheduled" | AttendanceStatus | "makeup_added" | "extra_added";
 
 export type CalendarDayItem =
   | {
@@ -28,7 +33,14 @@ export type CalendarDayItem =
       transferFromPeriodLabel?: string | null;
     }
   | { type: "announcement"; title: string; timeRange: string | null; note: string | null }
-  | { type: "school_event"; title: string; note: string | null };
+  | { type: "school_event"; title: string; note: string | null }
+  | {
+      type: "calendar_event";
+      eventType: "teacher" | "juku";
+      title: string;
+      timeRange: string | null;
+      note: string | null;
+    };
 
 export type CalendarDay = {
   date: string;
@@ -44,7 +56,7 @@ export async function buildStudentCalendar(params: {
 }): Promise<CalendarDay[]> {
   const { studentId, schoolId, year, month } = params;
 
-  const [schedules, periods, subjects, announcements, closures, schoolEvents, records] =
+  const [schedules, periods, subjects, announcements, closures, schoolEvents, records, calendarEvents] =
     await Promise.all([
       getSchedulesForStudent(studentId),
       getPeriods(),
@@ -53,6 +65,7 @@ export async function buildStudentCalendar(params: {
       listClosuresForMonth(year, month),
       schoolId ? listSchoolEventsForMonth(schoolId, year, month) : Promise.resolve([]),
       getAttendanceRecordsForStudentMonth(studentId, year, month),
+      listCalendarEventsForStudentMonth(studentId, year, month),
     ]);
 
   const periodById = new Map(periods.map((p) => [p.id, p.name]));
@@ -112,6 +125,31 @@ export async function buildStudentCalendar(params: {
       items.push({ type: "school_event", title: e.title, note: e.note });
     }
 
+    for (const ev of calendarEvents.filter((ev) => ev.event_date === iso)) {
+      if (ev.event_type === "lesson") {
+        items.push({
+          type: "lesson",
+          subject: subjectById.get(ev.subject_id ?? -1) ?? ev.title,
+          periodLabel: periodById.get(ev.period_id ?? -1) ?? "(コマ未定)",
+          status: ev.attendanceStatus ?? "extra_added",
+          attendanceRecordId: null,
+        });
+      } else {
+        items.push({
+          type: "calendar_event",
+          eventType: ev.event_type,
+          title: ev.title,
+          timeRange:
+            ev.start_time && ev.end_time
+              ? `${ev.start_time.slice(0, 5)}〜${ev.end_time.slice(0, 5)}`
+              : ev.start_time
+                ? ev.start_time.slice(0, 5)
+                : null,
+          note: ev.note,
+        });
+      }
+    }
+
     days.push({ date: iso, status, items });
   }
 
@@ -121,7 +159,16 @@ export async function buildStudentCalendar(params: {
 export type AdminCalendarDayItem =
   | { type: "school_event"; title: string; schoolName: string; note: string | null }
   | { type: "announcement"; title: string; timeRange: string | null; note: string | null }
-  | { type: "todo"; id: string; content: string; done: boolean };
+  | { type: "todo"; id: string; content: string; done: boolean }
+  | {
+      type: "calendar_event";
+      id: number;
+      eventType: "lesson" | "teacher" | "juku";
+      title: string;
+      timeRange: string | null;
+      note: string | null;
+      visibility: "admin_only" | "selected" | "all";
+    };
 
 export type AdminCalendarDay = {
   date: string;
@@ -133,12 +180,18 @@ export async function buildAdminCalendar(
   year: number,
   month: number
 ): Promise<AdminCalendarDay[]> {
-  const [announcements, closures, schoolEvents, todos] = await Promise.all([
+  const [announcements, closures, schoolEvents, todos, calendarEvents] = await Promise.all([
     listAnnouncementsForMonth(year, month),
     listClosuresForMonth(year, month),
     listAllSchoolEventsForMonth(year, month),
     listTodosForMonth(year, month),
+    listCalendarEventsForMonth(year, month),
   ]);
+
+  const periods = await getPeriods();
+  const subjects = await getSubjects();
+  const periodById = new Map(periods.map((p) => [p.id, p.name]));
+  const subjectById = new Map(subjects.map((s) => [s.id, s.name]));
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const days: AdminCalendarDay[] = [];
@@ -157,6 +210,28 @@ export async function buildAdminCalendar(
     }
     for (const t of todos.filter((t) => t.todo_date === iso)) {
       items.push({ type: "todo", id: t.id, content: t.content, done: t.done });
+    }
+    for (const ev of calendarEvents.filter((ev) => ev.event_date === iso)) {
+      const timeRange =
+        ev.event_type === "lesson"
+          ? periodById.get(ev.period_id ?? -1) ?? "(コマ未定)"
+          : ev.start_time && ev.end_time
+            ? `${ev.start_time.slice(0, 5)}〜${ev.end_time.slice(0, 5)}`
+            : ev.start_time
+              ? ev.start_time.slice(0, 5)
+              : null;
+      items.push({
+        type: "calendar_event",
+        id: ev.id,
+        eventType: ev.event_type,
+        title:
+          ev.event_type === "lesson"
+            ? `${ev.title}${ev.subject_id ? `(${subjectById.get(ev.subject_id) ?? ""})` : ""}`
+            : ev.title,
+        timeRange,
+        note: ev.note,
+        visibility: ev.visibility,
+      });
     }
 
     days.push({ date: iso, status, items });

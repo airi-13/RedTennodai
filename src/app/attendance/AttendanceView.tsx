@@ -17,6 +17,8 @@ const STATUS_OPTIONS: { value: AttendanceStatus; label: string }[] = [
 
 // 振替先(destination)の出欠は「振替」を選ぶと元の記録が上書きされてしまうため出さない
 const TRANSFER_ADDITION_STATUS_OPTIONS = STATUS_OPTIONS.filter((o) => o.value !== "makeup");
+// 単発授業(calendar_events由来)は振替という概念がないため出さない
+const CALENDAR_EVENT_STATUS_OPTIONS = STATUS_OPTIONS.filter((o) => o.value !== "makeup");
 
 // 行全体をグレーアウトする状態(振替元・無断欠席): 一覧からは消さずに視覚的に控えめにする
 const DIMMED_STATUSES: AttendanceStatus[] = ["makeup", "no_show"];
@@ -191,7 +193,11 @@ function StudentRow({
   );
 
   const dimmed = !isTransferAddition && status && DIMMED_STATUSES.includes(status);
-  const options = isTransferAddition ? TRANSFER_ADDITION_STATUS_OPTIONS : STATUS_OPTIONS;
+  const options = isTransferAddition
+    ? TRANSFER_ADDITION_STATUS_OPTIONS
+    : slot.calendarEventId
+      ? CALENDAR_EVENT_STATUS_OPTIONS
+      : STATUS_OPTIONS;
   const fromPeriodName = periods.find((p) => p.id === slot.transferFromPeriodId)?.name ?? "";
 
   function apply(
@@ -211,6 +217,7 @@ function StudentRow({
         makeupDate: newStatus === "makeup" ? newMakeupDate || null : null,
         makeupPeriodId:
           newStatus === "makeup" && newMakeupPeriodId !== "" ? newMakeupPeriodId : null,
+        calendarEventId: slot.calendarEventId ?? null,
       });
     });
   }
@@ -229,6 +236,15 @@ function StudentRow({
             style={{ background: "var(--color-makeup)" }}
           >
             振替追加(元: {slot.transferFromDate} {fromPeriodName})
+          </span>
+        )}
+
+        {slot.calendarEventId && (
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+            style={{ background: "var(--color-accent)" }}
+          >
+            単発授業{slot.calendarEventTitle ? `: ${slot.calendarEventTitle}` : ""}
           </span>
         )}
 

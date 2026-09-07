@@ -22,6 +22,7 @@ function lessonLabel(item: Extract<CalendarDayItem, { type: "lesson" }>) {
     case "late": return `${base}(遅刻)`;
     case "makeup": return `${base}(振替済)`;
     case "makeup_added": return `${base}(振替授業)`;
+    case "extra_added": return `${base}(単発授業)`;
     default: return base;
   }
 }
@@ -29,6 +30,11 @@ function lessonLabel(item: Extract<CalendarDayItem, { type: "lesson" }>) {
 function itemStyle(item: CalendarDayItem) {
   if (item.type === "announcement") return { background: CALENDAR_COLORS.juku, color: "white" };
   if (item.type === "school_event") return { background: CALENDAR_COLORS.school, color: "var(--color-ink)" };
+  if (item.type === "calendar_event") {
+    return item.eventType === "teacher"
+      ? { background: "#E8E0F5", color: "var(--color-ink)" }
+      : { background: CALENDAR_COLORS.juku, color: "white" };
+  }
   if (item.type === "lesson" && item.status === "makeup_added" && item.makeupAttendanceStatus === "absent") return { background: CALENDAR_COLORS.absent, color: "white" };
   if (item.type !== "lesson") return { background: "white", color: "var(--color-ink)" };
   switch (item.status) {
@@ -36,6 +42,7 @@ function itemStyle(item: CalendarDayItem) {
     case "makeup":
     case "no_show": return { background: "#B9B9B9", color: "white" };
     case "makeup_added": return { background: CALENDAR_COLORS.makeup, color: "white" };
+    case "extra_added": return { background: "var(--color-accent)", color: "white" };
     case "late": return { background: "var(--color-late)", color: "white" };
     default: return { background: CALENDAR_COLORS.present, color: "var(--color-ink)" };
   }
@@ -56,12 +63,13 @@ export function CalendarGrid({ year, month, days, periods }: { year: number; mon
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
   return <div className="rounded-lg border-2 border-[var(--color-ink)] bg-[var(--color-surface)] p-4">
     <div className="mb-3 flex items-center justify-center gap-4"><Link href={`/my?y=${prev.y}&m=${prev.m}`} className="rounded-full border border-[var(--color-ink)] px-2 py-0.5 text-sm">←</Link><span className="font-display font-bold">{monthLabel(year, month)}</span><Link href={`/my?y=${next.y}&m=${next.m}`} className="rounded-full border border-[var(--color-ink)] px-2 py-0.5 text-sm">→</Link></div>
-    <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-ink-soft)]"><LegendDot color={CALENDAR_COLORS.present} label="通常授業" /><LegendDot color={CALENDAR_COLORS.absent} label="欠席" /><LegendDot color={CALENDAR_COLORS.makeup} label="振替授業" /><LegendDot color={CALENDAR_COLORS.school} label="学校の予定" /><LegendDot color={CALENDAR_COLORS.juku} label="塾の予定" /></div>
+    <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-ink-soft)]"><LegendDot color={CALENDAR_COLORS.present} label="通常授業" /><LegendDot color={CALENDAR_COLORS.absent} label="欠席" /><LegendDot color={CALENDAR_COLORS.makeup} label="振替授業" /><LegendDot color="var(--color-accent)" label="単発授業" /><LegendDot color={CALENDAR_COLORS.school} label="学校の予定" /><LegendDot color={CALENDAR_COLORS.juku} label="塾の予定" /></div>
     <div className="grid grid-cols-7 gap-1 text-center text-xs text-[var(--color-ink-soft)]">{["日", "月", "火", "水", "木", "金", "土"].map((d) => <div key={d}>{d}</div>)}{leadingBlanks.map((_, i) => <div key={`blank-${i}`} />)}{days.map((day) => <div key={day.date} className="min-h-[72px] rounded-md border border-[var(--color-border)] bg-white p-1 text-left" style={day.status === "closed" ? { background: "var(--color-accent-soft)" } : undefined}><div className="text-[10px] text-[var(--color-ink-soft)]">{Number(day.date.slice(-2))}{day.status === "closed" && <span className="ml-1 font-bold" style={{ color: "var(--color-accent-dark)" }}>休</span>}</div><div className="mt-0.5 space-y-0.5">{day.items.map((item, i) => <button key={i} onClick={() => setSelected({ date: day.date, item })} className="block w-full truncate rounded px-1 text-left text-[10px]" style={itemStyle(item)} title={item.type === "lesson" ? lessonLabel(item) : item.title}>{item.type === "lesson" ? lessonLabel(item) : item.title}</button>)}</div></div>)}</div>
     <p className="mt-2 text-[10px] text-[var(--color-ink-soft)]">タップして詳細を確認できます。</p>
     {selected?.item.type === "lesson" && <LessonModal selected={{ date: selected.date, item: selected.item }} periods={periods} onClose={() => setSelected(null)} />}
     {selected?.item.type === "announcement" && <EventModal title="塾の予定" item={selected.item} onClose={() => setSelected(null)} />}
     {selected?.item.type === "school_event" && <EventModal title="学校の予定" item={selected.item} onClose={() => setSelected(null)} />}
+    {selected?.item.type === "calendar_event" && <CalendarEventModal item={selected.item} onClose={() => setSelected(null)} />}
   </div>;
 }
 
@@ -72,7 +80,38 @@ function LessonModal({ selected, periods, onClose }: { selected: { date: string;
   const period = periods.find((p) => p.name === item.periodLabel);
   if (item.status === "makeup") { const destinationPeriod = periods.find((p) => p.id === item.transferToPeriodId); return <Overlay onClose={onClose}><div className="space-y-1 text-sm font-medium text-[var(--color-ink)]"><p className="font-bold">振替済</p><p>{formatDateTime(date, period?.start_time ?? null)}</p><p className="pl-8">↓</p><p>{formatDateTime(item.transferToDate ?? date, destinationPeriod?.start_time ?? null)}</p></div></Overlay>; }
   if (item.status === "makeup_added") { const sourcePeriod = periods.find((p) => p.name === item.transferFromPeriodLabel); return <MakeupDestinationModal selected={selected} targetPeriodId={period?.id ?? ""} sourceTime={formatDateTime(item.transferFromDate ?? date, sourcePeriod?.start_time ?? null)} destinationTime={formatDateTime(date, period?.start_time ?? null)} alreadyAbsent={item.makeupAttendanceStatus === "absent"} onClose={onClose} />; }
+  if (item.status === "extra_added") {
+    return (
+      <Overlay onClose={onClose}>
+        <ModalHeader date={date} item={item} onClose={onClose} />
+        <p className="text-sm" style={{ color: "var(--color-accent)" }}>
+          先生が追加した単発の授業です。
+        </p>
+        <p className="text-xs text-[var(--color-ink-soft)]">
+          欠席する場合は教室まで直接ご連絡ください。
+        </p>
+      </Overlay>
+    );
+  }
   return <Overlay onClose={onClose}><ModalHeader date={date} item={item} onClose={onClose} /><NewRegistrationForm date={date} periodId={period?.id ?? ""} periods={periods} /></Overlay>;
+}
+
+function CalendarEventModal({ item, onClose }: { item: Extract<CalendarDayItem, { type: "calendar_event" }>; onClose: () => void }) {
+  const title = item.eventType === "teacher" ? "先生の予定" : "塾の予定";
+  return (
+    <Overlay onClose={onClose}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="font-display font-bold">{title}</p>
+          <p className="mt-1 text-sm">{item.title}</p>
+        </div>
+        <button onClick={onClose} className="text-[var(--color-ink-soft)]">✕</button>
+      </div>
+      {item.timeRange && <p className="text-sm text-[var(--color-ink-soft)]">時間：{item.timeRange}</p>}
+      {item.note && <div className="rounded-md bg-[var(--color-bg)] p-3 text-sm whitespace-pre-wrap">{item.note}</div>}
+      {!item.note && <p className="text-sm text-[var(--color-ink-soft)]">詳細はありません。</p>}
+    </Overlay>
+  );
 }
 
 function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinationTime, alreadyAbsent, onClose }: { selected: { date: string; item: Extract<CalendarDayItem, { type: "lesson" }> }; targetPeriodId: number | ""; sourceTime: string; destinationTime: string; alreadyAbsent: boolean; onClose: () => void }) {
