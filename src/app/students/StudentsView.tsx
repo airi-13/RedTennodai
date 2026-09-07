@@ -85,12 +85,17 @@ export function StudentsView({
       }),
     [visibleStudents, schedulesByStudent, subjectById, periodNameById]
   );
+  // 表の各行がどの生徒かを、位置(何番目か)ではなくIDで対応付ける。
+  // 行の削除や空行があっても保存時にズレて別人のデータにならないようにするため。
+  const editTableRowIds = useMemo(() => visibleStudents.map((s) => s.id), [visibleStudents]);
 
-  async function saveEditedStudents(rows: string[][]) {
+  async function saveEditedStudents(rows: string[][], rowIds: (number | null)[]) {
     const gradeMap: Record<string, string> = { 小: "小学生", 中: "中学生", 高: "高校生" };
+    const studentById = new Map(visibleStudents.map((s) => [s.id, s]));
     const payload = rows.map((row, index) => {
-      const student = visibleStudents[index];
-      if (!student) throw new Error(`${index + 1}行目：対象の生徒が見つかりません(行を追加・削除した場合は表の再読み込みが必要です)`);
+      const studentId = rowIds[index];
+      const student = studentId != null ? studentById.get(studentId) : undefined;
+      if (!student) throw new Error(`${index + 1}行目：対象の生徒が見つかりません(表を保存する前にページを再読み込みしてください)`);
       const gradeText = row[7]?.trim() ?? "";
       const m = gradeText.match(/^(小|中|高)(\d+)$/);
       if (!m) throw new Error(`${index + 1}行目：学年「${gradeText}」は「高2」「中3」「小6」の形式で入力してください`);
@@ -138,6 +143,7 @@ export function StudentsView({
           key={visibleStudents.map((s) => s.id).join(",")}
           mode="edit"
           initialRows={editTableRows}
+          initialRowIds={editTableRowIds}
           onRegister={saveEditedStudents}
         />
       )}
