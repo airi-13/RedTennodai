@@ -27,6 +27,7 @@ export type NewStudent = {
   name: string;
   name_kana?: string | null;
   gender?: string | null;
+  birthdate?: string | null;
   school_level?: string | null;
   school_name?: string | null;
   grade?: number | null;
@@ -84,6 +85,7 @@ export type StudentUpdate = {
   name?: string;
   name_kana?: string | null;
   gender?: string | null;
+  birthdate?: string | null;
   school_level?: string | null;
   school_name?: string | null;
   grade?: number | null;
