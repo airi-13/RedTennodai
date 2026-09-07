@@ -29,22 +29,28 @@ export async function createStudentWithLoginAction(
   return student;
 }
 
-type BulkRow = {
-  loginId: string;
-  gender: string | null;
-  name: string;
-  nameKana: string | null;
-  schoolName: string | null;
-  schoolLevel: string;
-  grade: number;
-  password: string;
-  subjectsText?: string | null;
-  lessonCountText?: string | null;
-  scheduleText?: string | null;
-};
+// 学年欄(「小6」「中2」「高1」等)を区分+学年に分解する。空欄なら両方nullを返す。
+// 欄に何か入っているのに形式が違う場合だけエラーにする(未入力は許可する)。
+function parseGradeText(gradeText: string | null | undefined): { schoolLevel: string | null; grade: number | null } {
+  const text = gradeText?.trim() ?? "";
+  if (!text) return { schoolLevel: null, grade: null };
+  const gradeMap: Record<string, string> = { 小: "小学生", 中: "中学生", 高: "高校生" };
+  const m = text.match(/^(小|中|高)(\d+)$/);
+  if (!m) throw new Error(`学年「${text}」は「高2」「中3」「小6」の形式で入力してください(未入力も可)`);
+  return { schoolLevel: gradeMap[m[1]], grade: Number(m[2]) };
+}
+
+// 生年月日欄を正規化する。空欄ならnull。全角/半角のスラッシュ・ハイフン両方を受け付ける。
+function parseBirthdateText(text: string | null | undefined): string | null {
+  const t = (text ?? "").trim().replace(/\//g, "-").replace(/年|月/g, "-").replace(/日/g, "");
+  if (!t) return null;
+  const m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) throw new Error(`生年月日「${text}」は「2015-4-1」のような形式で入力してください(未入力も可)`);
+  return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+}
 
 // 授業科目テキスト・授業コマテキストから、そのまま student_schedules へ追加できる形に変換する。
-// 新規登録・既存編集の両方で使う共通処理。
+// 新規登録・既存編集の両方で使う共通処理。両方とも空欄なら何もしない(スケジュール未設定/維持)。
 async function buildScheduleRows(
   studentId: number,
   subjectsText: string | null | undefined,
@@ -78,71 +84,27 @@ async function buildScheduleRows(
   return rows;
 }
 
-export async function bulkCreateStudentsAction(
-  rows: BulkRow[]
-): Promise<{ loginId: string; ok: boolean; error?: string }[]> {
-  const { data: subjects, error: subjectsError } = await supabase
-    .from("subjects")
-    .select("id,name,code")
-    .order("sort_order");
-  if (subjectsError) throw subjectsError;
-
-  const { data: periods, error: periodsError } = await supabase
-    .from("periods")
-    .select("id,name")
-    .order("sort_order");
-  if (periodsError) throw periodsError;
-
-  const results: { loginId: string; ok: boolean; error?: string }[] = [];
-  for (const row of rows) {
-    try {
-      const student = await createStudentWithLogin({
-        name: row.name,
-        name_kana: row.nameKana,
-        gender: row.gender,
-        school_level: row.schoolLevel,
-        school_name: row.schoolName,
-        grade: row.grade,
-        loginId: row.loginId,
-        password: row.password,
-      });
-
-      const scheduleRows = await buildScheduleRows(student.id, row.subjectsText, row.scheduleText, subjects, periods);
-      for (const s of scheduleRows) {
-        await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
-      }
-
-      results.push({ loginId: row.loginId, ok: true });
-    } catch (e: any) {
-      results.push({ loginId: row.loginId, ok: false, error: e?.message ?? "不明なエラー" });
-    }
-  }
-  revalidatePath("/students");
-  revalidatePath("/attendance");
-  return results;
-}
-
-type BulkEditRow = {
-  studentId: number;
+type TableRow = {
+  studentId: number | null; // nullなら新規作成
   loginId: string;
   gender: string | null;
-  name: string;
+  name: string; // 空欄ならloginIdを仮の名前として使う
   nameKana: string | null;
   schoolName: string | null;
-  schoolLevel: string;
-  grade: number;
-  password?: string | null; // 空なら変更しない
-  subjectsText?: string | null; // 空なら授業予定を変更しない
+  gradeText: string | null; // 「小6」等。空欄可
+  birthdateText: string | null; // 「2015-4-1」等。空欄可
+  password: string | null; // 新規行では必須。既存行では空欄=変更なし
+  subjectsText?: string | null;
   lessonCountText?: string | null;
   scheduleText?: string | null;
+  note?: string | null;
 };
 
-// 既存生徒を表形式でまとめて編集する。Pass欄が空の行はパスワードを変更せず、
-// 授業科目・授業コマの両方が空の行は現在のスケジュールをそのまま維持する
-// (どちらか一方でも入力されていれば、その生徒のスケジュールを表の内容で丸ごと置き換える)。
-export async function bulkUpdateStudentsAction(
-  rows: BulkEditRow[]
-): Promise<{ loginId: string; ok: boolean; error?: string }[]> {
+export type TableRowResult = { loginId: string; ok: boolean; error?: string };
+
+// 生徒一覧の表(新規行・既存行が混在)をまとめて保存する。
+// studentIdが無い行は新規作成(生徒ID・Passのみ必須)、ある行は更新として扱う。
+export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRowResult[]> {
   const { data: subjects, error: subjectsError } = await supabase
     .from("subjects")
     .select("id,name,code")
@@ -155,42 +117,73 @@ export async function bulkUpdateStudentsAction(
     .order("sort_order");
   if (periodsError) throw periodsError;
 
-  const results: { loginId: string; ok: boolean; error?: string }[] = [];
+  const results: TableRowResult[] = [];
+
   for (const row of rows) {
     try {
-      await updateStudent(row.studentId, {
-        name: row.name,
-        name_kana: row.nameKana,
-        gender: row.gender,
-        school_level: row.schoolLevel,
-        school_name: row.schoolName,
-        grade: row.grade,
-      });
+      const { schoolLevel, grade } = parseGradeText(row.gradeText);
+      const birthdate = parseBirthdateText(row.birthdateText);
 
-      if (row.password?.trim()) {
-        const { data: student, error } = await supabase
-          .from("students")
-          .select("auth_user_id")
-          .eq("id", row.studentId)
-          .single();
-        if (error) throw error;
-        if (!student?.auth_user_id) throw new Error("ログイン未発行の生徒のパスワードは変更できません");
-        await updateStudentPassword(student.auth_user_id, row.password.trim());
-      }
-
-      if (row.subjectsText?.trim() || row.scheduleText?.trim()) {
-        const scheduleRows = await buildScheduleRows(row.studentId, row.subjectsText, row.scheduleText, subjects, periods);
-        await deleteSchedulesForStudent(row.studentId);
+      if (row.studentId == null) {
+        // 新規作成: 生徒ID・Passのみ必須。それ以外は空欄可。
+        if (!row.loginId.trim() || !row.password?.trim()) {
+          throw new Error("生徒IDとPassは必須です");
+        }
+        const student = await createStudentWithLogin({
+          name: row.name.trim() || row.loginId.trim(),
+          name_kana: row.nameKana,
+          gender: row.gender,
+          birthdate,
+          school_level: schoolLevel,
+          school_name: row.schoolName,
+          grade,
+          note: row.note ?? null,
+          loginId: row.loginId.trim(),
+          password: row.password.trim(),
+        });
+        const scheduleRows = await buildScheduleRows(student.id, row.subjectsText, row.scheduleText, subjects, periods);
         for (const s of scheduleRows) {
           await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
+        }
+      } else {
+        // 既存生徒の更新。生徒IDはここでは変更しない(表側でも読み取り専用にしている)。
+        await updateStudent(row.studentId, {
+          name: row.name.trim() || row.loginId.trim(),
+          name_kana: row.nameKana,
+          gender: row.gender,
+          birthdate,
+          school_level: schoolLevel,
+          school_name: row.schoolName,
+          grade,
+          note: row.note ?? null,
+        });
+
+        if (row.password?.trim()) {
+          const { data: student, error } = await supabase
+            .from("students")
+            .select("auth_user_id")
+            .eq("id", row.studentId)
+            .single();
+          if (error) throw error;
+          if (!student?.auth_user_id) throw new Error("ログイン未発行の生徒のパスワードは変更できません");
+          await updateStudentPassword(student.auth_user_id, row.password.trim());
+        }
+
+        if (row.subjectsText?.trim() || row.scheduleText?.trim()) {
+          const scheduleRows = await buildScheduleRows(row.studentId, row.subjectsText, row.scheduleText, subjects, periods);
+          await deleteSchedulesForStudent(row.studentId);
+          for (const s of scheduleRows) {
+            await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
+          }
         }
       }
 
       results.push({ loginId: row.loginId, ok: true });
     } catch (e: any) {
-      results.push({ loginId: row.loginId, ok: false, error: e?.message ?? "不明なエラー" });
+      results.push({ loginId: row.loginId || "(生徒ID未入力)", ok: false, error: e?.message ?? "不明なエラー" });
     }
   }
+
   revalidatePath("/students");
   revalidatePath("/attendance");
   revalidatePath("/my");
