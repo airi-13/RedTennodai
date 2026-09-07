@@ -126,3 +126,28 @@ export async function updateStudentStatus(
     .eq("id", id);
   if (error) throw error;
 }
+
+// 表形式の一括編集でPass欄に入力があった場合のみ呼ばれる。
+// auth_user_idが無い(通常ログインを発行していない)生徒には使えない。
+export async function updateStudentPassword(authUserId: string, password: string) {
+  const { error } = await supabase.auth.admin.updateUserById(authUserId, { password });
+  if (error) throw error;
+}
+
+// 生徒を完全に削除する。student_schedules/attendance_records等はON DELETE CASCADEで
+// 一緒に削除される。ログインアカウント(Supabase Auth)も発行済みなら合わせて削除する。
+export async function deleteStudent(id: number) {
+  const { data: student, error: fetchError } = await supabase
+    .from("students")
+    .select("auth_user_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+
+  const { error } = await supabase.from("students").delete().eq("id", id);
+  if (error) throw error;
+
+  if (student?.auth_user_id) {
+    await supabase.auth.admin.deleteUser(student.auth_user_id);
+  }
+}

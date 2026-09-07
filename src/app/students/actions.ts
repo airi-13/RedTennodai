@@ -6,11 +6,14 @@ import {
   createStudentWithLogin,
   updateStudent,
   updateStudentStatus,
+  updateStudentPassword,
+  deleteStudent,
   type NewStudent,
   type StudentUpdate,
 } from "@/lib/data/students";
-import { addSchedule, deleteSchedule } from "@/lib/data/schedules";
+import { addSchedule, deleteSchedule, deleteSchedulesForStudent } from "@/lib/data/schedules";
 import { supabase } from "@/lib/supabase";
+import { subjectCandidates, parseSchedule, periodNameVariants } from "@/lib/schedule-text-parser";
 
 export async function createStudentAction(input: NewStudent) {
   const student = await createStudent(input);
@@ -40,39 +43,39 @@ type BulkRow = {
   scheduleText?: string | null;
 };
 
-const SUBJECT_ALIASES: Record<string, string[]> = {
-  "英": ["英", "英語"],
-  "数": ["数", "数学"],
-  "数Ⅰ": ["数Ⅰ", "数学Ⅰ", "数1"],
-  "数Ⅱ": ["数Ⅱ", "数学Ⅱ", "数2"],
-  "算": ["算", "算数"],
-  "国": ["国", "国語"],
-  QUREO: ["QUREO"],
-  DOJO: ["DOJO"],
-};
+// 授業科目テキスト・授業コマテキストから、そのまま student_schedules へ追加できる形に変換する。
+// 新規登録・既存編集の両方で使う共通処理。
+async function buildScheduleRows(
+  studentId: number,
+  subjectsText: string | null | undefined,
+  scheduleText: string | null | undefined,
+  subjects: { id: number; name: string; code: string }[],
+  periods: { id: number; name: string }[]
+) {
+  const subjectTokens = subjectCandidates(subjectsText ?? "");
+  const selectedSubjects = subjectTokens
+    .map((token) => subjects.find((s) => [s.name, s.code].some((v) => String(v).toLowerCase() === token)))
+    .filter(Boolean) as { id: number; name: string; code: string }[];
+  const uniqueSubjects = [...new Map(selectedSubjects.map((s) => [s.id, s])).values()];
+  const scheduleGroups = parseSchedule(scheduleText ?? null);
+  const slots = scheduleGroups.flatMap((group) => group.periods.map((period) => ({ dayOfWeek: group.dayOfWeek, period })));
 
-function subjectCandidates(text: string) {
-  return text.split(",").map((s) => s.trim()).filter(Boolean).flatMap((token) => {
-    const aliases = SUBJECT_ALIASES[token] ?? [token];
-    return aliases.map((name) => name.toLowerCase());
-  });
-}
+  if ((subjectsText?.trim() || scheduleText?.trim()) && (!uniqueSubjects.length || !slots.length)) {
+    throw new Error("授業科目または授業コマを読み取れませんでした");
+  }
 
-function parseSchedule(text: string | null): { dayOfWeek: number; periods: string[] }[] {
-  if (!text?.trim()) return [];
-  const dayMap: Record<string, number> = { 日: 0, 月: 1, 火: 2, 水: 3, 木: 4, 金: 5, 土: 6 };
-  const matches = [...text.matchAll(/([日月火水木金土]+)([①②③④⑤⑥⑦⑧]+)/g)];
-  return matches.flatMap((m) => {
-    const days = [...m[1]].map((d) => dayMap[d]).filter((d) => d !== undefined);
-    const periods = [...m[2]];
-    return days.map((dayOfWeek) => ({ dayOfWeek, periods }));
-  });
-}
-
-function periodNameVariants(name: string) {
-  const n = name.trim();
-  const arabic = { "①": "1", "②": "2", "③": "3", "④": "4", "⑤": "5", "⑥": "6", "⑦": "7", "⑧": "8" }[n];
-  return [n, arabic].filter(Boolean) as string[];
+  const rows: { student_id: number; day_of_week: number; period_id: number; subject_id: number }[] = [];
+  // 80分授業は2コマで1授業として扱う。複数科目の場合は授業ペアを順番に割り当てる。
+  for (let i = 0; i + 1 < slots.length; i += 2) {
+    const subject = uniqueSubjects.length ? uniqueSubjects[Math.floor(i / 2) % uniqueSubjects.length] : null;
+    if (!subject) continue;
+    const first = periods.find((p) => periodNameVariants(slots[i].period).includes(String(p.name))) || periods.find((p) => periodNameVariants(slots[i].period).includes(String(p.id)));
+    const second = periods.find((p) => periodNameVariants(slots[i + 1].period).includes(String(p.name))) || periods.find((p) => periodNameVariants(slots[i + 1].period).includes(String(p.id)));
+    if (!first || !second) throw new Error(`授業コマ「${slots[i].period}${slots[i + 1].period}」を認識できません`);
+    rows.push({ student_id: studentId, day_of_week: slots[i].dayOfWeek, period_id: first.id, subject_id: subject.id });
+    rows.push({ student_id: studentId, day_of_week: slots[i + 1].dayOfWeek, period_id: second.id, subject_id: subject.id });
+  }
+  return rows;
 }
 
 export async function bulkCreateStudentsAction(
@@ -104,25 +107,9 @@ export async function bulkCreateStudentsAction(
         password: row.password,
       });
 
-      const subjectTokens = subjectCandidates(row.subjectsText ?? "");
-      const selectedSubjects = subjectTokens.map((token) => subjects.find((s: any) => [s.name, s.code].some((v) => String(v).toLowerCase() === token))).filter(Boolean) as any[];
-      const uniqueSubjects = [...new Map(selectedSubjects.map((s) => [s.id, s])).values()];
-      const scheduleGroups = parseSchedule(row.scheduleText ?? null);
-      const slots = scheduleGroups.flatMap((group) => group.periods.map((period) => ({ dayOfWeek: group.dayOfWeek, period })));
-
-      if ((row.subjectsText?.trim() || row.scheduleText?.trim()) && (!uniqueSubjects.length || !slots.length)) {
-        throw new Error("授業科目または授業コマを読み取れませんでした");
-      }
-
-      // 80分授業は2コマで1授業として扱う。複数科目の場合は授業ペアを順番に割り当てる。
-      for (let i = 0; i + 1 < slots.length; i += 2) {
-        const subject = uniqueSubjects.length ? uniqueSubjects[Math.floor(i / 2) % uniqueSubjects.length] : null;
-        if (!subject) continue;
-        const first = periods.find((p: any) => periodNameVariants(slots[i].period).includes(String(p.name))) || periods.find((p: any) => periodNameVariants(slots[i].period).includes(String(p.id)));
-        const second = periods.find((p: any) => periodNameVariants(slots[i + 1].period).includes(String(p.name))) || periods.find((p: any) => periodNameVariants(slots[i + 1].period).includes(String(p.id)));
-        if (!first || !second) throw new Error(`授業コマ「${slots[i].period}${slots[i + 1].period}」を認識できません`);
-        await addSchedule({ student_id: student.id, day_of_week: slots[i].dayOfWeek, period_id: first.id, subject_id: subject.id });
-        await addSchedule({ student_id: student.id, day_of_week: slots[i + 1].dayOfWeek, period_id: second.id, subject_id: subject.id });
+      const scheduleRows = await buildScheduleRows(student.id, row.subjectsText, row.scheduleText, subjects, periods);
+      for (const s of scheduleRows) {
+        await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
       }
 
       results.push({ loginId: row.loginId, ok: true });
@@ -132,6 +119,81 @@ export async function bulkCreateStudentsAction(
   }
   revalidatePath("/students");
   revalidatePath("/attendance");
+  return results;
+}
+
+type BulkEditRow = {
+  studentId: number;
+  loginId: string;
+  gender: string | null;
+  name: string;
+  nameKana: string | null;
+  schoolName: string | null;
+  schoolLevel: string;
+  grade: number;
+  password?: string | null; // 空なら変更しない
+  subjectsText?: string | null; // 空なら授業予定を変更しない
+  lessonCountText?: string | null;
+  scheduleText?: string | null;
+};
+
+// 既存生徒を表形式でまとめて編集する。Pass欄が空の行はパスワードを変更せず、
+// 授業科目・授業コマの両方が空の行は現在のスケジュールをそのまま維持する
+// (どちらか一方でも入力されていれば、その生徒のスケジュールを表の内容で丸ごと置き換える)。
+export async function bulkUpdateStudentsAction(
+  rows: BulkEditRow[]
+): Promise<{ loginId: string; ok: boolean; error?: string }[]> {
+  const { data: subjects, error: subjectsError } = await supabase
+    .from("subjects")
+    .select("id,name,code")
+    .order("sort_order");
+  if (subjectsError) throw subjectsError;
+
+  const { data: periods, error: periodsError } = await supabase
+    .from("periods")
+    .select("id,name")
+    .order("sort_order");
+  if (periodsError) throw periodsError;
+
+  const results: { loginId: string; ok: boolean; error?: string }[] = [];
+  for (const row of rows) {
+    try {
+      await updateStudent(row.studentId, {
+        name: row.name,
+        name_kana: row.nameKana,
+        gender: row.gender,
+        school_level: row.schoolLevel,
+        school_name: row.schoolName,
+        grade: row.grade,
+      });
+
+      if (row.password?.trim()) {
+        const { data: student, error } = await supabase
+          .from("students")
+          .select("auth_user_id")
+          .eq("id", row.studentId)
+          .single();
+        if (error) throw error;
+        if (!student?.auth_user_id) throw new Error("ログイン未発行の生徒のパスワードは変更できません");
+        await updateStudentPassword(student.auth_user_id, row.password.trim());
+      }
+
+      if (row.subjectsText?.trim() || row.scheduleText?.trim()) {
+        const scheduleRows = await buildScheduleRows(row.studentId, row.subjectsText, row.scheduleText, subjects, periods);
+        await deleteSchedulesForStudent(row.studentId);
+        for (const s of scheduleRows) {
+          await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
+        }
+      }
+
+      results.push({ loginId: row.loginId, ok: true });
+    } catch (e: any) {
+      results.push({ loginId: row.loginId, ok: false, error: e?.message ?? "不明なエラー" });
+    }
+  }
+  revalidatePath("/students");
+  revalidatePath("/attendance");
+  revalidatePath("/my");
   return results;
 }
 
@@ -147,6 +209,13 @@ export async function setStudentActiveAction(id: number, active: boolean) {
   await updateStudentStatus(id, active ? "active" : "inactive");
   revalidatePath("/students");
   revalidatePath("/attendance");
+}
+
+export async function deleteStudentAction(id: number) {
+  await deleteStudent(id);
+  revalidatePath("/students");
+  revalidatePath("/attendance");
+  revalidatePath("/my");
 }
 
 export async function addScheduleAction(input: {

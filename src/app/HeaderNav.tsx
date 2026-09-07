@@ -17,7 +17,7 @@ const ADMIN_SIDE = [
 
 const adminLinks = [
   { href: "/dashboard", label: "カレンダー" },
-  { href: "/attendance", label: "出欠入力" },
+  { href: "/attendance", label: "出欠管理" },
   { href: "/students", label: "生徒管理" },
   { href: "/requests", label: "申請" },
   { href: "/admin-calendar", label: "カレンダー管理" },

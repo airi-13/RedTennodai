@@ -55,5 +55,12 @@ export async function deleteSchedule(id: number) {
   if (error) throw error;
 }
 
+// 表形式の一括編集で「授業科目」「授業コマ」欄が入力された場合、
+// 既存のスケジュールを全て置き換えるために使う。
+export async function deleteSchedulesForStudent(studentId: number) {
+  const { error } = await supabase.from("student_schedules").delete().eq("student_id", studentId);
+  if (error) throw error;
+}
+
 // 業務ルール本体は lib/schedule-rules.ts (クライアントからも安全にimport可能)
 export { isValidEightyMinutePair } from "@/lib/schedule-rules";
