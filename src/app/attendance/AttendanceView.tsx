@@ -191,6 +191,7 @@ function StudentRow({
   const [makeupPeriodId, setMakeupPeriodId] = useState<number | "">(
     slot.makeupPeriodId ?? ""
   );
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const dimmed = !isTransferAddition && status && DIMMED_STATUSES.includes(status);
   const options = isTransferAddition
@@ -207,18 +208,30 @@ function StudentRow({
     newMakeupPeriodId: number | ""
   ) {
     setStatus(newStatus);
+    setErrorMsg(null);
+
+    // 振替は振替先の日付・コマが両方揃うまでサーバーへは送らない
+    // (「振替」ボタンを押した直後はまだ未入力なので、ここで止めて入力欄だけ表示する)。
+    if (newStatus === "makeup" && (!newMakeupDate || newMakeupPeriodId === "")) {
+      return;
+    }
+
     startTransition(async () => {
-      await setAttendanceStatus({
-        studentId: slot.studentId,
-        date,
-        periodId,
-        subjectId: newSubjectId,
-        status: newStatus,
-        makeupDate: newStatus === "makeup" ? newMakeupDate || null : null,
-        makeupPeriodId:
-          newStatus === "makeup" && newMakeupPeriodId !== "" ? newMakeupPeriodId : null,
-        calendarEventId: slot.calendarEventId ?? null,
-      });
+      try {
+        await setAttendanceStatus({
+          studentId: slot.studentId,
+          date,
+          periodId,
+          subjectId: newSubjectId,
+          status: newStatus,
+          makeupDate: newStatus === "makeup" ? newMakeupDate || null : null,
+          makeupPeriodId:
+            newStatus === "makeup" && newMakeupPeriodId !== "" ? newMakeupPeriodId : null,
+          calendarEventId: slot.calendarEventId ?? null,
+        });
+      } catch (e: any) {
+        setErrorMsg(e?.message ?? "保存に失敗しました");
+      }
     });
   }
 
@@ -296,6 +309,12 @@ function StudentRow({
           <span className="text-xs text-[var(--color-ink-soft)]">未確定</span>
         )}
       </div>
+
+      {errorMsg && (
+        <p className="ml-[7rem] text-xs" style={{ color: "var(--color-absent)" }}>
+          {errorMsg}
+        </p>
+      )}
 
       {!isTransferAddition && status === "makeup" && (
         <div className="ml-[7rem] flex flex-wrap items-center gap-2 text-sm">
