@@ -21,9 +21,7 @@ export async function getPeriodAvailabilityForDay(
   return data;
 }
 
-export async function getAllPeriodAvailability(): Promise
-  PeriodAvailability[]
-> {
+export async function getAllPeriodAvailability(): Promise<PeriodAvailability[]> {
   const { data, error } = await supabase.from("period_availability").select("*");
   if (error) throw error;
   return data;
