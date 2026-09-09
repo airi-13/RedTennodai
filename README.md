@@ -27,7 +27,8 @@ src/
 
 データ層(`lib/data/*`)と画面・Server Actions(`app/*`)を分離しているので、将来Supabase以外に切り替える場合は`lib/data/`の中身だけ差し替えればよい設計。
 
-## ローカルで動かす
+## ローカルで動かす(基本的には使わない)
+
 
 ```bash
 npm install
