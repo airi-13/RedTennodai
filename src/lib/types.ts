@@ -13,6 +13,7 @@ export type PeriodAvailability = {
   day_of_week: number;
   period_id: number;
   is_open: boolean;
+  capacity: number | null;
 };
 
 export type Subject = {
