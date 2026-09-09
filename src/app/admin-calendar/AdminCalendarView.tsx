@@ -7,6 +7,7 @@ import type { School } from "@/lib/data/schools";
 import type { SchoolEvent } from "@/lib/data/school-events";
 import type { AdminTodo } from "@/lib/data/admin-todos";
 import type { Notice } from "@/lib/data/notices";
+import type { Period, PeriodAvailability } from "@/lib/types";
 import {
   setClosureAction,
   clearClosureAction,
@@ -20,7 +21,10 @@ import {
   deleteTodoAction,
   createNoticeAction,
   deleteNoticeAction,
+  setPeriodAvailabilityAction,
 } from "./actions";
+
+const DOW_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 
 function monthLabel(year: number, month: number) {
   return `${year}年${month}月`;
@@ -35,6 +39,9 @@ export function AdminCalendarView({
   schools,
   todos,
   notices,
+  periods,
+  periodAvailability,
+  enrollmentCounts,
 }: {
   year: number;
   month: number;
@@ -44,6 +51,9 @@ export function AdminCalendarView({
   schools: School[];
   todos: AdminTodo[];
   notices: Notice[];
+  periods: Period[];
+  periodAvailability: PeriodAvailability[];
+  enrollmentCounts: Record<string, number>;
 }) {
   const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
@@ -64,11 +74,119 @@ export function AdminCalendarView({
       </div>
 
       <NoticeSection notices={notices} />
+      <PeriodAvailabilitySection periods={periods} periodAvailability={periodAvailability} enrollmentCounts={enrollmentCounts} />
       <ClosureSection closures={closures} />
       <AnnouncementSection announcements={announcements} />
       <SchoolEventSection schoolEvents={schoolEvents} schools={schools} />
       <TodoSection todos={todos} />
     </div>
+  );
+}
+
+function PeriodAvailabilitySection({
+  periods,
+  periodAvailability,
+  enrollmentCounts,
+}: {
+  periods: Period[];
+  periodAvailability: PeriodAvailability[];
+  enrollmentCounts: Record<string, number>;
+}) {
+  const [isPending, startTransition] = useTransition();
+  // 楽観的に画面側でも即時反映しておく(保存自体はセルごとに個別実行)
+  const [localAvailability, setLocalAvailability] = useState(periodAvailability);
+
+  const byKey = new Map(localAvailability.map((a) => [`${a.day_of_week}:${a.period_id}`, a]));
+
+  function updateLocal(dayOfWeek: number, periodId: number, patch: Partial<PeriodAvailability>) {
+    setLocalAvailability((current) =>
+      current.map((a) => (a.day_of_week === dayOfWeek && a.period_id === periodId ? { ...a, ...patch } : a))
+    );
+  }
+
+  function toggleOpen(dayOfWeek: number, periodId: number, current: PeriodAvailability) {
+    const nextOpen = !current.is_open;
+    updateLocal(dayOfWeek, periodId, { is_open: nextOpen });
+    startTransition(() => setPeriodAvailabilityAction(dayOfWeek, periodId, nextOpen, current.capacity));
+  }
+
+  function changeCapacity(dayOfWeek: number, periodId: number, current: PeriodAvailability, text: string) {
+    const capacity = text.trim() === "" ? null : Number(text);
+    updateLocal(dayOfWeek, periodId, { capacity: Number.isNaN(capacity) ? current.capacity : capacity });
+    if (!Number.isNaN(capacity)) {
+      startTransition(() => setPeriodAvailabilityAction(dayOfWeek, periodId, current.is_open, capacity));
+    }
+  }
+
+  return (
+    <SectionCard title="開講枠・人数管理(デフォルトの曜日・コマ設定)">
+      <p className="text-xs text-[var(--color-ink-soft)]">
+        曜日×コマごとに、その枠を受け付けるか(開講/休講)と、人数の上限(空欄=無制限)を設定できます。
+        「在籍」は現在その枠に定期スケジュールを持つ生徒数です。特定の1日だけの休講・特別開講は下の「休講・特別開講」で設定してください。
+      </p>
+      <div className="overflow-auto">
+        <table className="min-w-[900px] border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="border-b border-r border-[var(--color-border)] px-2 py-2 text-left">コマ</th>
+              {DOW_LABEL.map((label) => (
+                <th key={label} className="border-b border-r border-[var(--color-border)] px-2 py-2 text-center">
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {periods.map((period) => (
+              <tr key={period.id}>
+                <td className="whitespace-nowrap border-b border-r border-[var(--color-border)] px-2 py-2 font-medium">{period.name}</td>
+                {DOW_LABEL.map((_, dayOfWeek) => {
+                  const key = `${dayOfWeek}:${period.id}`;
+                  const availability = byKey.get(key);
+                  if (!availability) {
+                    return <td key={dayOfWeek} className="border-b border-r border-[var(--color-border)] px-2 py-2 text-center text-[var(--color-ink-soft)]">-</td>;
+                  }
+                  const count = enrollmentCounts[key] ?? 0;
+                  const overCapacity = availability.capacity != null && count > availability.capacity;
+                  return (
+                    <td key={dayOfWeek} className="border-b border-r border-[var(--color-border)] px-2 py-1 text-center align-top">
+                      <div className="flex flex-col items-center gap-1">
+                        <button
+                          disabled={isPending}
+                          onClick={() => toggleOpen(dayOfWeek, period.id, availability)}
+                          className="rounded-full border px-2 py-0.5 text-[10px] font-medium disabled:opacity-50"
+                          style={
+                            availability.is_open
+                              ? { background: "var(--color-present)", borderColor: "var(--color-present)", color: "white" }
+                              : { borderColor: "var(--color-border)", color: "var(--color-ink-soft)" }
+                          }
+                        >
+                          {availability.is_open ? "開講" : "休講"}
+                        </button>
+                        {availability.is_open && (
+                          <>
+                            <input
+                              value={availability.capacity ?? ""}
+                              onChange={(e) => changeCapacity(dayOfWeek, period.id, availability, e.target.value)}
+                              placeholder="無制限"
+                              inputMode="numeric"
+                              className="w-14 rounded border border-[var(--color-border)] px-1 py-0.5 text-center text-[10px]"
+                            />
+                            <span className="text-[10px]" style={overCapacity ? { color: "var(--color-absent)", fontWeight: "bold" } : { color: "var(--color-ink-soft)" }}>
+                              在籍 {count}{availability.capacity != null && ` / ${availability.capacity}`}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
   );
 }
 
