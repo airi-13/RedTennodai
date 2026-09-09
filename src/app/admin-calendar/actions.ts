@@ -12,6 +12,7 @@ import {
   type CalendarEventType,
   type CalendarEventVisibility,
 } from "@/lib/data/calendar-events";
+import { setPeriodAvailability } from "@/lib/data/periods";
 
 function refresh() {
   revalidatePath("/admin-calendar");
@@ -113,5 +114,16 @@ export async function toggleTodoAction(id: string, done: boolean) {
 }
 export async function deleteTodoAction(id: string) {
   await deleteTodo(id);
+  refresh();
+}
+
+// 開講枠(曜日×コマ)の開講/休講、および人数上限(空欄=無制限)を設定する。
+export async function setPeriodAvailabilityAction(
+  dayOfWeek: number,
+  periodId: number,
+  isOpen: boolean,
+  capacity: number | null
+) {
+  await setPeriodAvailability(dayOfWeek, periodId, isOpen, capacity);
   refresh();
 }
