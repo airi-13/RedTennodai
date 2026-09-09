@@ -42,6 +42,12 @@ export function periodNameVariants(name: string) {
   return [n, arabic].filter(Boolean) as string[];
 }
 
+// 小5以上(小学5・6年、中学、高校の全学年)は80分授業(2コマ1組)、それ以外は40分授業(1コマ単独)。
+export function needsEightyMinutes(schoolLevel: string | null, grade: number | null): boolean {
+  if (schoolLevel === "小学生") return (grade ?? 0) >= 5;
+  return schoolLevel === "中学生" || schoolLevel === "高校生";
+}
+
 // 「日③④,水①②」のように科目とコマをまとめて元のテキスト形式へ戻す(表の初期表示用)。
 export function scheduleToText(
   schedules: { day_of_week: number; period_id: number }[],
