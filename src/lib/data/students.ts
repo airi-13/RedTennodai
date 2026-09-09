@@ -4,7 +4,7 @@ import { findOrCreateSchoolByName } from "@/lib/data/schools";
 import type { Student } from "@/lib/types";
 
 export async function getStudents(includeInactive = false): Promise<Student[]> {
-  let query = supabase.from("students").select("*").order("name");
+  let query = supabase.from("students").select("*").order("login_id");
   if (!includeInactive) {
     query = query.eq("status", "active");
   }
