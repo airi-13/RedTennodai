@@ -13,7 +13,9 @@ import {
 } from "@/lib/data/students";
 import { addSchedule, deleteSchedule, deleteSchedulesForStudent } from "@/lib/data/schedules";
 import { supabase } from "@/lib/supabase";
-import { subjectCandidates, parseSchedule, periodNameVariants } from "@/lib/schedule-text-parser";
+import { subjectCandidates, parseSchedule, periodNameVariants, needsEightyMinutes } from "@/lib/schedule-text-parser";
+
+const DAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 
 export async function createStudentAction(input: NewStudent) {
   const student = await createStudent(input);
@@ -51,12 +53,17 @@ function parseBirthdateText(text: string | null | undefined): string | null {
 
 // 授業科目テキスト・授業コマテキストから、そのまま student_schedules へ追加できる形に変換する。
 // 新規登録・既存編集の両方で使う共通処理。両方とも空欄なら何もしない(スケジュール未設定/維持)。
+// 曜日をまたいでコマをペアにしてしまわないよう、必ず「同じ曜日の中だけ」でペアを組む。
+// 80分授業(eightyMinutes=true)は2コマ1組、それ以外(40分授業)は1コマずつ独立して扱う。
+// 解釈できないコマ・組めないペアがあった場合は、黙って捨てずに必ずエラーにする
+// (「保存しました」と表示されるのにコマが消える、という事故を防ぐため)。
 async function buildScheduleRows(
   studentId: number,
   subjectsText: string | null | undefined,
   scheduleText: string | null | undefined,
   subjects: { id: number; name: string; code: string }[],
-  periods: { id: number; name: string }[]
+  periods: { id: number; name: string }[],
+  eightyMinutes: boolean
 ) {
   const subjectTokens = subjectCandidates(subjectsText ?? "");
   const selectedSubjects = subjectTokens
@@ -64,22 +71,44 @@ async function buildScheduleRows(
     .filter(Boolean) as { id: number; name: string; code: string }[];
   const uniqueSubjects = [...new Map(selectedSubjects.map((s) => [s.id, s])).values()];
   const scheduleGroups = parseSchedule(scheduleText ?? null);
-  const slots = scheduleGroups.flatMap((group) => group.periods.map((period) => ({ dayOfWeek: group.dayOfWeek, period })));
 
-  if ((subjectsText?.trim() || scheduleText?.trim()) && (!uniqueSubjects.length || !slots.length)) {
+  if ((subjectsText?.trim() || scheduleText?.trim()) && (!uniqueSubjects.length || !scheduleGroups.length)) {
     throw new Error("授業科目または授業コマを読み取れませんでした");
   }
 
   const rows: { student_id: number; day_of_week: number; period_id: number; subject_id: number }[] = [];
-  // 80分授業は2コマで1授業として扱う。複数科目の場合は授業ペアを順番に割り当てる。
-  for (let i = 0; i + 1 < slots.length; i += 2) {
-    const subject = uniqueSubjects.length ? uniqueSubjects[Math.floor(i / 2) % uniqueSubjects.length] : null;
-    if (!subject) continue;
-    const first = periods.find((p) => periodNameVariants(slots[i].period).includes(String(p.name))) || periods.find((p) => periodNameVariants(slots[i].period).includes(String(p.id)));
-    const second = periods.find((p) => periodNameVariants(slots[i + 1].period).includes(String(p.name))) || periods.find((p) => periodNameVariants(slots[i + 1].period).includes(String(p.id)));
-    if (!first || !second) throw new Error(`授業コマ「${slots[i].period}${slots[i + 1].period}」を認識できません`);
-    rows.push({ student_id: studentId, day_of_week: slots[i].dayOfWeek, period_id: first.id, subject_id: subject.id });
-    rows.push({ student_id: studentId, day_of_week: slots[i + 1].dayOfWeek, period_id: second.id, subject_id: subject.id });
+  let lessonIndex = 0; // 科目を順番に割り当てるための通し番号(コマのペア、または単独コマごとに1つ進む)
+
+  for (const group of scheduleGroups) {
+    const resolvedPeriods = group.periods.map((p) => {
+      const found =
+        periods.find((per) => periodNameVariants(p).includes(String(per.name))) ||
+        periods.find((per) => periodNameVariants(p).includes(String(per.id)));
+      if (!found) throw new Error(`授業コマ「${p}」を認識できません`);
+      return found;
+    });
+
+    if (eightyMinutes) {
+      if (resolvedPeriods.length % 2 !== 0) {
+        throw new Error(
+          `${DAY_LABEL[group.dayOfWeek]}曜日の授業コマが奇数個(${resolvedPeriods.length}個)です。80分授業は2コマ1組で入力してください(例: ①②)`
+        );
+      }
+      for (let i = 0; i + 1 < resolvedPeriods.length; i += 2) {
+        const subject = uniqueSubjects.length ? uniqueSubjects[lessonIndex % uniqueSubjects.length] : null;
+        if (!subject) continue;
+        rows.push({ student_id: studentId, day_of_week: group.dayOfWeek, period_id: resolvedPeriods[i].id, subject_id: subject.id });
+        rows.push({ student_id: studentId, day_of_week: group.dayOfWeek, period_id: resolvedPeriods[i + 1].id, subject_id: subject.id });
+        lessonIndex++;
+      }
+    } else {
+      for (const period of resolvedPeriods) {
+        const subject = uniqueSubjects.length ? uniqueSubjects[lessonIndex % uniqueSubjects.length] : null;
+        if (!subject) continue;
+        rows.push({ student_id: studentId, day_of_week: group.dayOfWeek, period_id: period.id, subject_id: subject.id });
+        lessonIndex++;
+      }
+    }
   }
   return rows;
 }
@@ -141,7 +170,14 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
           loginId: row.loginId.trim(),
           password: row.password.trim(),
         });
-        const scheduleRows = await buildScheduleRows(student.id, row.subjectsText, row.scheduleText, subjects, periods);
+        const scheduleRows = await buildScheduleRows(
+          student.id,
+          row.subjectsText,
+          row.scheduleText,
+          subjects,
+          periods,
+          needsEightyMinutes(schoolLevel, grade)
+        );
         for (const s of scheduleRows) {
           await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
         }
@@ -170,7 +206,27 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
         }
 
         if (row.subjectsText?.trim() || row.scheduleText?.trim()) {
-          const scheduleRows = await buildScheduleRows(row.studentId, row.subjectsText, row.scheduleText, subjects, periods);
+          // 学年欄が空欄(変更なし)の場合、80分/40分授業の判定に現在の学年情報を使う
+          let effectiveSchoolLevel = schoolLevel;
+          let effectiveGrade = grade;
+          if (!row.gradeText?.trim()) {
+            const { data: current, error } = await supabase
+              .from("students")
+              .select("school_level, grade")
+              .eq("id", row.studentId)
+              .single();
+            if (error) throw error;
+            effectiveSchoolLevel = current?.school_level ?? null;
+            effectiveGrade = current?.grade ?? null;
+          }
+          const scheduleRows = await buildScheduleRows(
+            row.studentId,
+            row.subjectsText,
+            row.scheduleText,
+            subjects,
+            periods,
+            needsEightyMinutes(effectiveSchoolLevel, effectiveGrade)
+          );
           await deleteSchedulesForStudent(row.studentId);
           for (const s of scheduleRows) {
             await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
