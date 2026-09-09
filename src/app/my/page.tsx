@@ -31,16 +31,32 @@ export default async function MyCalendarPage({
     return <p>生徒情報が見つかりませんでした。教室までお問い合わせください。</p>;
   }
 
-  const [days, { data: notices }, { data: periods }] = await Promise.all([
-    buildStudentCalendar({
-      studentId: student.id,
-      schoolId: student.school_id,
-      year,
-      month,
-    }),
-    supabase.from("notices").select("*").order("created_at", { ascending: false }).limit(5),
-    supabase.from("periods").select("id, name, start_time").order("sort_order"),
-  ]);
+  let days, notices, periods;
+  try {
+    const results = await Promise.all([
+      buildStudentCalendar({
+        studentId: student.id,
+        schoolId: student.school_id,
+        year,
+        month,
+      }),
+      supabase.from("notices").select("*").order("created_at", { ascending: false }).limit(5),
+      supabase.from("periods").select("id, name, start_time").order("sort_order"),
+    ]);
+    days = results[0];
+    notices = results[1].data;
+    periods = results[2].data;
+  } catch (e) {
+    console.error("MyCalendarPage failed to load data:", e);
+    return (
+      <div className="space-y-3">
+        <h1 className="font-display text-lg font-bold">{student.name}さんのカレンダー</h1>
+        <p className="text-sm" style={{ color: "var(--color-absent)" }}>
+          カレンダーの読み込み中にエラーが発生しました。時間をおいて再度お試しください。改善しない場合は教室までご連絡ください。
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

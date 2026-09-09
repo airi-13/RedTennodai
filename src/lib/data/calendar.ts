@@ -56,7 +56,7 @@ export async function buildStudentCalendar(params: {
 }): Promise<CalendarDay[]> {
   const { studentId, schoolId, year, month } = params;
 
-  const [schedules, periods, subjects, announcements, closures, schoolEvents, records, calendarEvents] =
+  const [schedules, periods, subjects, announcements, closures, schoolEvents, records] =
     await Promise.all([
       getSchedulesForStudent(studentId),
       getPeriods(),
@@ -65,8 +65,14 @@ export async function buildStudentCalendar(params: {
       listClosuresForMonth(year, month),
       schoolId ? listSchoolEventsForMonth(schoolId, year, month) : Promise.resolve([]),
       getAttendanceRecordsForStudentMonth(studentId, year, month),
-      listCalendarEventsForStudentMonth(studentId, year, month),
     ]);
+  // calendar_events関連は比較的新しい機能のため、万一失敗しても他の予定表示に影響しないようにする
+  const calendarEvents = await listCalendarEventsForStudentMonth(studentId, year, month).catch(
+    (e) => {
+      console.error("listCalendarEventsForStudentMonth failed:", e);
+      return [] as CalendarEventForStudent[];
+    }
+  );
 
   const periodById = new Map(periods.map((p) => [p.id, p.name]));
   const subjectById = new Map(subjects.map((s) => [s.id, s.name]));
@@ -180,13 +186,16 @@ export async function buildAdminCalendar(
   year: number,
   month: number
 ): Promise<AdminCalendarDay[]> {
-  const [announcements, closures, schoolEvents, todos, calendarEvents] = await Promise.all([
+  const [announcements, closures, schoolEvents, todos] = await Promise.all([
     listAnnouncementsForMonth(year, month),
     listClosuresForMonth(year, month),
     listAllSchoolEventsForMonth(year, month),
     listTodosForMonth(year, month),
-    listCalendarEventsForMonth(year, month),
   ]);
+  const calendarEvents = await listCalendarEventsForMonth(year, month).catch((e) => {
+    console.error("listCalendarEventsForMonth failed:", e);
+    return [];
+  });
 
   const periods = await getPeriods();
   const subjects = await getSubjects();

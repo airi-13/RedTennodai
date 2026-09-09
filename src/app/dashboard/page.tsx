@@ -17,13 +17,26 @@ export default async function DashboardPage({
   const year = params.y ? Number(params.y) : now.getFullYear();
   const month = params.m ? Number(params.m) : now.getMonth() + 1;
 
-  const [days, periods, subjects, students, schools] = await Promise.all([
-    buildAdminCalendar(year, month),
-    getPeriods(),
-    getSubjects(),
-    getStudents(),
-    listSchools(),
-  ]);
+  let days, periods, subjects, students, schools;
+  try {
+    [days, periods, subjects, students, schools] = await Promise.all([
+      buildAdminCalendar(year, month),
+      getPeriods(),
+      getSubjects(),
+      getStudents(),
+      listSchools(),
+    ]);
+  } catch (e) {
+    console.error("DashboardPage failed to load data:", e);
+    return (
+      <div className="space-y-3">
+        <h1 className="text-lg font-semibold">カレンダー(全体)</h1>
+        <p className="text-sm" style={{ color: "var(--color-absent)" }}>
+          読み込み中にエラーが発生しました。時間をおいて再度お試しください。
+        </p>
+      </div>
+    );
+  }
 
   return (
     <DashboardView
