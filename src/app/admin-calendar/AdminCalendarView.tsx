@@ -95,6 +95,10 @@ function PeriodAvailabilitySection({
   const [isPending, startTransition] = useTransition();
   // 楽観的に画面側でも即時反映しておく(保存自体はセルごとに個別実行)
   const [localAvailability, setLocalAvailability] = useState(periodAvailability);
+  const [capacityText, setCapacityText] = useState<Record<string, string>>(
+    Object.fromEntries(periodAvailability.map((a) => [`${a.day_of_week}:${a.period_id}`, a.capacity == null ? "" : String(a.capacity)]))
+  );
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const byKey = new Map(localAvailability.map((a) => [`${a.day_of_week}:${a.period_id}`, a]));
 
@@ -106,16 +110,46 @@ function PeriodAvailabilitySection({
 
   function toggleOpen(dayOfWeek: number, periodId: number, current: PeriodAvailability) {
     const nextOpen = !current.is_open;
+    const prevOpen = current.is_open;
     updateLocal(dayOfWeek, periodId, { is_open: nextOpen });
-    startTransition(() => setPeriodAvailabilityAction(dayOfWeek, periodId, nextOpen, current.capacity));
+    setErrorMsg(null);
+    startTransition(async () => {
+      try {
+        await setPeriodAvailabilityAction(dayOfWeek, periodId, nextOpen, current.capacity);
+      } catch (e: any) {
+        updateLocal(dayOfWeek, periodId, { is_open: prevOpen });
+        setErrorMsg(e?.message ?? "保存に失敗しました");
+      }
+    });
   }
 
-  function changeCapacity(dayOfWeek: number, periodId: number, current: PeriodAvailability, text: string) {
+  // 入力中は文字列だけ保持し、フォーカスが外れた時にまとめて保存する
+  // (キー入力のたびにサーバーへ送ると、数字が確定する前の状態でエラーになりやすいため)。
+  function onCapacityInput(dayOfWeek: number, periodId: number, text: string) {
+    setCapacityText((prev) => ({ ...prev, [`${dayOfWeek}:${periodId}`]: text }));
+  }
+
+  function commitCapacity(dayOfWeek: number, periodId: number, current: PeriodAvailability) {
+    const key = `${dayOfWeek}:${periodId}`;
+    const text = capacityText[key] ?? "";
     const capacity = text.trim() === "" ? null : Number(text);
-    updateLocal(dayOfWeek, periodId, { capacity: Number.isNaN(capacity) ? current.capacity : capacity });
-    if (!Number.isNaN(capacity)) {
-      startTransition(() => setPeriodAvailabilityAction(dayOfWeek, periodId, current.is_open, capacity));
+    if (Number.isNaN(capacity)) {
+      setCapacityText((prev) => ({ ...prev, [key]: current.capacity == null ? "" : String(current.capacity) }));
+      return;
     }
+    if (capacity === current.capacity) return;
+    const prevCapacity = current.capacity;
+    updateLocal(dayOfWeek, periodId, { capacity });
+    setErrorMsg(null);
+    startTransition(async () => {
+      try {
+        await setPeriodAvailabilityAction(dayOfWeek, periodId, current.is_open, capacity);
+      } catch (e: any) {
+        updateLocal(dayOfWeek, periodId, { capacity: prevCapacity });
+        setCapacityText((prev) => ({ ...prev, [key]: prevCapacity == null ? "" : String(prevCapacity) }));
+        setErrorMsg(e?.message ?? "保存に失敗しました");
+      }
+    });
   }
 
   return (
@@ -124,6 +158,11 @@ function PeriodAvailabilitySection({
         曜日×コマごとに、その枠を受け付けるか(開講/休講)と、人数の上限(空欄=無制限)を設定できます。
         「在籍」は現在その枠に定期スケジュールを持つ生徒数です。特定の1日だけの休講・特別開講は下の「休講・特別開講」で設定してください。
       </p>
+      {errorMsg && (
+        <p className="text-xs" style={{ color: "var(--color-error)" }}>
+          {errorMsg}
+        </p>
+      )}
       <div className="overflow-auto">
         <table className="min-w-[900px] border-collapse text-xs">
           <thead>
@@ -166,13 +205,14 @@ function PeriodAvailabilitySection({
                         {availability.is_open && (
                           <>
                             <input
-                              value={availability.capacity ?? ""}
-                              onChange={(e) => changeCapacity(dayOfWeek, period.id, availability, e.target.value)}
+                              value={capacityText[key] ?? ""}
+                              onChange={(e) => onCapacityInput(dayOfWeek, period.id, e.target.value)}
+                              onBlur={() => commitCapacity(dayOfWeek, period.id, availability)}
                               placeholder="無制限"
                               inputMode="numeric"
                               className="w-14 rounded border border-[var(--color-border)] px-1 py-0.5 text-center text-[10px]"
                             />
-                            <span className="text-[10px]" style={overCapacity ? { color: "var(--color-absent)", fontWeight: "bold" } : { color: "var(--color-ink-soft)" }}>
+                            <span className="text-[10px]" style={overCapacity ? { color: "var(--color-error)", fontWeight: "bold" } : { color: "var(--color-ink-soft)" }}>
                               在籍 {count}{availability.capacity != null && ` / ${availability.capacity}`}
                             </span>
                           </>
