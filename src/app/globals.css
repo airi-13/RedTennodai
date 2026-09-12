@@ -12,17 +12,16 @@
   --color-accent-dark:#A22E11;
 
   /* Calendar status colors */
-  --color-present:#DCEEFF;
-  --color-absent:#FFE58A;
+  --color-present:#191970;        /* 授業予定・通常授業 */
+  --color-absent:#FFD600;         /* 欠席・無断欠席 */
   --color-late:#C9932F;
-  --color-makeup:#4C7FA3;
-  --color-juku:#E05A47;
-  --color-school:#DCEFD8;
+  --color-makeup:#191970;         /* 単発授業(臨時)・振替授業 */
+  --color-makeup-border:#B00020;  /* 単発授業・振替授業の縁 */
+  --color-juku:#D13C18;           /* 塾のお知らせ・塾の予定 */
+  --color-school:#4CAF50;         /* 学校行事 */
+  --color-teacher:#C21875;        /* 先生の予定・自分のTODO */
+  --color-error:#D13C18;          /* エラー文・削除ボタンなど(出欠の「欠席」とは別の意味) */
 }
-
-/* Calendar event colors: override legacy inline colors until the event renderer is migrated. */
-button[style*="#FFF3CD"], button[style*="rgb(255, 243, 205)"] { background: var(--color-juku) !important; color: white !important; }
-button[style*="#E3EEFB"], button[style*="rgb(227, 238, 251)"] { background: var(--color-school) !important; color: var(--color-ink) !important; }
 
 body {
   background: var(--color-bg);
