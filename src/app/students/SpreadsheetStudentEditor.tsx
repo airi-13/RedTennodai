@@ -2,19 +2,30 @@
 
 import { useMemo, useState } from "react";
 
-// 生徒ID・PassのみDB上必須。それ以外は空欄でも登録できる。
+// 生徒IDのみDB上必須(新規登録時はPassも必須)。それ以外は空欄でも登録できる。
 const COLUMNS = ["生徒ID", "性", "姓", "名", "ｾｲ", "ﾒｲ", "学校", "学年", "生年月日", "Pass", "授業科目", "授業数", "授業コマ", "備考"];
 const PASS_COL = 9;
 
 export type StudentStatus = "active" | "inactive";
+export type TableRowField = "loginId" | "password" | "grade" | "birthdate" | "schedule";
+export type TableRowResult = { loginId: string; ok: boolean; error?: string; field?: TableRowField };
+
+const FIELD_COLUMN: Record<TableRowField, number> = {
+  loginId: 0,
+  grade: 7,
+  birthdate: 8,
+  password: PASS_COL,
+  schedule: 12,
+};
 
 type Props = {
   // 既存生徒(prefilled)。新規追加用の空行は内部で自動的に用意する。
   initialRows: string[][];
-  initialRowIds: number[]; // initialRowsと同じ順番・同じ長さ(既存生徒のID)
+  initialRowIds: number[]; // initialRowsと同じ順番・同じ長さ(既存生徒のID、表示用)
   initialStatuses: StudentStatus[]; // 同上、退塾/在籍中の状態
-  // 生徒ID・Pass以外のセル編集をまとめて保存する。rowIds[i]がnullの行は新規作成。
-  onSave: (rows: string[][], rowIds: (number | null)[]) => Promise<void>;
+  // 生徒IDでサーバー側が既存/新規を判定して保存する。行ごとの結果が返る
+  // (エラーがあった行だけ失敗し、他の行はそのまま保存される)。
+  onSave: (rows: string[][]) => Promise<TableRowResult[]>;
   // 退塾/復帰・削除は表内から即時に反映する(保存ボタンを待たない)。
   onToggleActive: (studentId: number) => Promise<void>;
   onDelete: (studentId: number) => Promise<void>;
@@ -40,6 +51,8 @@ export function SpreadsheetStudentEditor({ initialRows, initialRowIds, initialSt
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  // 生徒ID(表示上のキー)ごとのエラー。保存に失敗した行・列だけを赤く示すために使う。
+  const [rowErrors, setRowErrors] = useState<Record<string, { message: string; field?: TableRowField }>>({});
 
   const normalized = useMemo(
     () => rows.map((row) => [...row, ...Array(Math.max(0, COLUMNS.length - row.length)).fill("")].slice(0, COLUMNS.length)),
@@ -117,23 +130,30 @@ export function SpreadsheetStudentEditor({ initialRows, initialRowIds, initialSt
   }
 
   async function save() {
-    const pairs = normalized
-      .map((row, i) => ({ row, id: rowIds[i] ?? null }))
-      .filter(({ row, id }) => id != null || row.some((v) => v.trim()));
-    const data = pairs.map((p) => p.row);
-    const ids = pairs.map((p) => p.id);
-
-    const invalidNew = pairs.findIndex(({ row, id }) => id == null && (!row[0].trim() || !row[PASS_COL].trim()));
-    if (invalidNew >= 0) {
-      setMessage(`${invalidNew + 1}行目：新規登録には生徒IDとPassが必須です`);
+    // 完全に空の行だけを除外して送る。生徒IDの有無・正しさなどはサーバー側で行ごとに判定し、
+    // エラーがあってもその行だけが失敗し、他の行はそのまま保存される。
+    const data = normalized.filter((row) => row.some((v) => v.trim()));
+    if (!data.length) {
+      setMessage("保存する行がありません");
       return;
     }
 
     setSaving(true);
     setMessage(null);
+    setRowErrors({});
     try {
-      await onSave(data, ids);
-      setMessage("保存しました");
+      const results = await onSave(data);
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length === 0) {
+        setMessage(`${results.length}件保存しました`);
+      } else {
+        setMessage(`${results.length - failed.length}件保存しました(${failed.length}件エラー。該当セルが赤くなっています)`);
+        const errMap: Record<string, { message: string; field?: TableRowField }> = {};
+        for (const f of failed) {
+          errMap[f.loginId] = { message: f.error ?? "エラー", field: f.field };
+        }
+        setRowErrors(errMap);
+      }
     } catch (e: any) {
       setMessage(e?.message ?? "保存に失敗しました");
     } finally {
@@ -147,9 +167,9 @@ export function SpreadsheetStudentEditor({ initialRows, initialRowIds, initialSt
         <div>
           <h2 className="font-medium">生徒一覧</h2>
           <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
-            この表から追加・編集ができます。生徒IDは登録後は変更できません。Pass欄は空欄のままにすると変更されません(新規登録の行は必須)。
-            授業科目・授業コマの両方が空欄の行は、現在のスケジュールを維持します。生徒ID・Pass以外は未入力でも登録できます。
-            退塾・削除は各行のボタンから即時に反映されます(保存ボタンは不要)。
+            この表から追加・編集ができます。生徒IDは登録後は変更できません。Pass欄は空欄のままにすると変更されません(新規登録の行は必須。現在と同じ値を入力しても上書き登録されるだけでエラーにはなりません)。
+            授業科目・授業コマの両方が空欄の行は、現在のスケジュールを維持します。生徒ID(新規登録時はPassも)以外は未入力でも登録できます。
+            一部の行でエラーがあっても、他の行はそのまま保存されます。退塾・削除は各行のボタンから即時に反映されます(保存ボタンは不要)。
           </p>
         </div>
         <button onClick={save} disabled={saving} className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--color-accent)" }}>
@@ -174,10 +194,16 @@ export function SpreadsheetStudentEditor({ initialRows, initialRowIds, initialSt
               const isExisting = studentId != null;
               const status = isExisting ? statuses[studentId] : undefined;
               const isPending = isExisting && pendingIds.has(studentId);
+              const rowError = row[0]?.trim() ? rowErrors[row[0].trim()] : undefined;
+              const errorColumn = rowError?.field ? FIELD_COLUMN[rowError.field] : undefined;
               return (
                 <tr key={studentId ?? `new-${r}`} className={status === "inactive" ? "opacity-60" : undefined}>
                   {COLUMNS.map((_, c) => (
-                    <td key={c} className="border-b border-r border-[var(--color-border)] p-0">
+                    <td
+                      key={c}
+                      className="border-b border-r border-[var(--color-border)] p-0"
+                      style={errorColumn === c ? { background: "#FDECEC" } : undefined}
+                    >
                       <input
                         value={row[c] ?? ""}
                         onChange={(e) => updateCell(r, c, e.target.value)}
@@ -190,6 +216,7 @@ export function SpreadsheetStudentEditor({ initialRows, initialRowIds, initialSt
                           }
                         }}
                         className="w-full min-w-[80px] bg-transparent px-2 py-2 outline-none focus:bg-[var(--color-bg)] read-only:text-[var(--color-ink-soft)]"
+                        style={errorColumn === c ? { color: "var(--color-error)", fontWeight: "bold" } : undefined}
                       />
                     </td>
                   ))}
@@ -202,7 +229,7 @@ export function SpreadsheetStudentEditor({ initialRows, initialRowIds, initialSt
                         </button>
                         {confirmingDeleteId === studentId ? (
                           <span className="flex items-center gap-1">
-                            <button disabled={isPending} onClick={() => remove(studentId, r)} className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-50" style={{ background: "var(--color-absent)" }}>
+                            <button disabled={isPending} onClick={() => remove(studentId, r)} className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white disabled:opacity-50" style={{ background: "var(--color-error)" }}>
                               削除する
                             </button>
                             <button disabled={isPending} onClick={() => setConfirmingDeleteId(null)} className="text-[10px] underline">
@@ -210,7 +237,7 @@ export function SpreadsheetStudentEditor({ initialRows, initialRowIds, initialSt
                             </button>
                           </span>
                         ) : (
-                          <button disabled={isPending} onClick={() => setConfirmingDeleteId(studentId)} className="text-[10px] underline disabled:opacity-50" style={{ color: "var(--color-absent)" }}>
+                          <button disabled={isPending} onClick={() => setConfirmingDeleteId(studentId)} className="text-[10px] underline disabled:opacity-50" style={{ color: "var(--color-error)" }}>
                             削除
                           </button>
                         )}
@@ -219,6 +246,11 @@ export function SpreadsheetStudentEditor({ initialRows, initialRowIds, initialSt
                       <button onClick={() => removeNewRow(r)} className="text-[10px] text-[var(--color-ink-soft)] underline">
                         この行を削除
                       </button>
+                    )}
+                    {rowError && (
+                      <p className="mt-0.5 max-w-[9rem] whitespace-normal text-[10px]" style={{ color: "var(--color-error)" }}>
+                        {rowError.message}
+                      </p>
                     )}
                   </td>
                 </tr>
