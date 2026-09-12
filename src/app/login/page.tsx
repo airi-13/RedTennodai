@@ -29,7 +29,7 @@ function StudentLoginForm() {
         className="w-full rounded-md border border-[var(--color-border)] px-3 py-2 text-sm"
       />
       {state?.error && (
-        <p className="text-sm" style={{ color: "var(--color-absent)" }}>
+        <p className="text-sm" style={{ color: "var(--color-error)" }}>
           {state.error}
         </p>
       )}
