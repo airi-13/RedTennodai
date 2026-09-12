@@ -12,6 +12,7 @@ const CALENDAR_COLORS = {
   makeup: "var(--color-makeup)",
   school: "var(--color-school)",
   juku: "var(--color-juku)",
+  teacher: "var(--color-teacher)",
 } as const;
 
 function lessonLabel(item: Extract<CalendarDayItem, { type: "lesson" }>) {
@@ -29,22 +30,29 @@ function lessonLabel(item: Extract<CalendarDayItem, { type: "lesson" }>) {
 
 function itemStyle(item: CalendarDayItem) {
   if (item.type === "announcement") return { background: CALENDAR_COLORS.juku, color: "white" };
-  if (item.type === "school_event") return { background: CALENDAR_COLORS.school, color: "var(--color-ink)" };
+  if (item.type === "school_event") return { background: CALENDAR_COLORS.school, color: "white" };
   if (item.type === "calendar_event") {
     return item.eventType === "teacher"
-      ? { background: "#E8E0F5", color: "var(--color-ink)" }
+      ? { background: CALENDAR_COLORS.teacher, color: "white" }
       : { background: CALENDAR_COLORS.juku, color: "white" };
   }
-  if (item.type === "lesson" && item.status === "makeup_added" && item.makeupAttendanceStatus === "absent") return { background: CALENDAR_COLORS.absent, color: "white" };
+  if (item.type === "lesson" && item.status === "makeup_added" && item.makeupAttendanceStatus === "absent") {
+    return { background: CALENDAR_COLORS.absent, color: "var(--color-ink)" };
+  }
   if (item.type !== "lesson") return { background: "white", color: "var(--color-ink)" };
   switch (item.status) {
-    case "absent": return { background: CALENDAR_COLORS.absent, color: "white" };
+    case "absent":
+    case "no_show":
+      return { background: CALENDAR_COLORS.absent, color: "var(--color-ink)" };
     case "makeup":
-    case "no_show": return { background: "#B9B9B9", color: "white" };
-    case "makeup_added": return { background: CALENDAR_COLORS.makeup, color: "white" };
-    case "extra_added": return { background: "var(--color-accent)", color: "white" };
-    case "late": return { background: "var(--color-late)", color: "white" };
-    default: return { background: CALENDAR_COLORS.present, color: "var(--color-ink)" };
+      return { background: "#B9B9B9", color: "white" };
+    case "makeup_added":
+    case "extra_added":
+      return { background: CALENDAR_COLORS.makeup, color: "white", border: "1.5px solid var(--color-makeup-border)" };
+    case "late":
+      return { background: "var(--color-late)", color: "white" };
+    default:
+      return { background: CALENDAR_COLORS.present, color: "white" };
   }
 }
 
@@ -63,7 +71,7 @@ export function CalendarGrid({ year, month, days, periods }: { year: number; mon
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
   return <div className="rounded-lg border-2 border-[var(--color-ink)] bg-[var(--color-surface)] p-4">
     <div className="mb-3 flex items-center justify-center gap-4"><Link href={`/my?y=${prev.y}&m=${prev.m}`} className="rounded-full border border-[var(--color-ink)] px-2 py-0.5 text-sm">←</Link><span className="font-display font-bold">{monthLabel(year, month)}</span><Link href={`/my?y=${next.y}&m=${next.m}`} className="rounded-full border border-[var(--color-ink)] px-2 py-0.5 text-sm">→</Link></div>
-    <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-ink-soft)]"><LegendDot color={CALENDAR_COLORS.present} label="通常授業" /><LegendDot color={CALENDAR_COLORS.absent} label="欠席" /><LegendDot color={CALENDAR_COLORS.makeup} label="振替授業" /><LegendDot color="var(--color-accent)" label="単発授業" /><LegendDot color={CALENDAR_COLORS.school} label="学校の予定" /><LegendDot color={CALENDAR_COLORS.juku} label="塾の予定" /></div>
+    <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-ink-soft)]"><LegendDot color={CALENDAR_COLORS.present} label="通常授業" /><LegendDot color={CALENDAR_COLORS.absent} label="欠席" /><LegendDot color={CALENDAR_COLORS.makeup} label="単発授業・振替授業" /><LegendDot color={CALENDAR_COLORS.school} label="学校行事" /><LegendDot color={CALENDAR_COLORS.juku} label="塾のお知らせ・予定" /><LegendDot color={CALENDAR_COLORS.teacher} label="先生の予定" /></div>
     <div className="grid grid-cols-7 gap-1 text-center text-xs text-[var(--color-ink-soft)]">{["日", "月", "火", "水", "木", "金", "土"].map((d) => <div key={d}>{d}</div>)}{leadingBlanks.map((_, i) => <div key={`blank-${i}`} />)}{days.map((day) => <div key={day.date} className="min-h-[72px] rounded-md border border-[var(--color-border)] bg-white p-1 text-left" style={day.status === "closed" ? { background: "var(--color-accent-soft)" } : undefined}><div className="text-[10px] text-[var(--color-ink-soft)]">{Number(day.date.slice(-2))}{day.status === "closed" && <span className="ml-1 font-bold" style={{ color: "var(--color-accent-dark)" }}>休</span>}</div><div className="mt-0.5 space-y-0.5">{day.items.map((item, i) => <button key={i} onClick={() => setSelected({ date: day.date, item })} className="block w-full truncate rounded px-1 text-left text-[10px]" style={itemStyle(item)} title={item.type === "lesson" ? lessonLabel(item) : item.title}>{item.type === "lesson" ? lessonLabel(item) : item.title}</button>)}</div></div>)}</div>
     <p className="mt-2 text-[10px] text-[var(--color-ink-soft)]">タップして詳細を確認できます。</p>
     {selected?.item.type === "lesson" && <LessonModal selected={{ date: selected.date, item: selected.item }} periods={periods} onClose={() => setSelected(null)} />}
