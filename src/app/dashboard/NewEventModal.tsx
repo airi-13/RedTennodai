@@ -6,14 +6,17 @@ import type { School } from "@/lib/data/schools";
 import type { CalendarEventType, CalendarEventVisibility } from "@/lib/data/calendar-events";
 import { createCalendarEventAction } from "@/app/admin-calendar/actions";
 import { createSchoolEventAction } from "@/app/admin-calendar/actions";
+import { createNoticeAction, createTodoAction } from "@/app/admin-calendar/actions";
 
-type Kind = "school_event" | "lesson" | "teacher" | "juku";
+type Kind = "school_event" | "lesson" | "teacher" | "juku" | "notice" | "todo";
 
 const KIND_LABEL: Record<Kind, string> = {
   school_event: "学校行事",
   lesson: "単発授業",
   teacher: "先生の予定(面談など)",
   juku: "塾の予定",
+  notice: "お知らせ欄",
+  todo: "自分のTODO",
 };
 
 export function NewEventModal({
@@ -69,8 +72,41 @@ export function NewEventModal({
 
   function submit() {
     setError(null);
+
+    if (kind === "notice") {
+      if (!title.trim()) {
+        setError("タイトルを入力してください。");
+        return;
+      }
+      startTransition(async () => {
+        try {
+          await createNoticeAction({ title: title.trim(), body: note.trim() || undefined });
+          onClose();
+        } catch (e: any) {
+          setError(e?.message ?? "登録に失敗しました");
+        }
+      });
+      return;
+    }
+
     if (!date) {
       setError("日付を入力してください。");
+      return;
+    }
+
+    if (kind === "todo") {
+      if (!title.trim()) {
+        setError("内容を入力してください。");
+        return;
+      }
+      startTransition(async () => {
+        try {
+          await createTodoAction({ todo_date: date, content: title.trim() });
+          onClose();
+        } catch (e: any) {
+          setError(e?.message ?? "登録に失敗しました");
+        }
+      });
       return;
     }
 
@@ -187,14 +223,38 @@ export function NewEventModal({
         </div>
 
         <div className="space-y-3">
-          <Field label="日付">
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-            />
-          </Field>
+          {kind !== "notice" && (
+            <Field label="日付">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+              />
+            </Field>
+          )}
+
+          {kind === "notice" && (
+            <Field label="タイトル">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="例: 夏期講習のお知らせ"
+                className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+              />
+            </Field>
+          )}
+
+          {kind === "todo" && (
+            <Field label="内容">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="例: ○○さんに電話する"
+                className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+              />
+            </Field>
+          )}
 
           {kind === "school_event" && (
             <>
@@ -293,8 +353,8 @@ export function NewEventModal({
             </>
           )}
 
-          {kind !== "school_event" && (
-            <Field label="メモ(任意)">
+          {kind !== "school_event" && kind !== "todo" && (
+            <Field label={kind === "notice" ? "本文(任意)" : "メモ(任意)"}>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -315,7 +375,7 @@ export function NewEventModal({
             </Field>
           )}
 
-          {kind !== "school_event" && (
+          {kind !== "school_event" && kind !== "notice" && kind !== "todo" && (
             <Field label="表示する範囲">
               <div className="flex flex-wrap gap-3 text-sm">
                 <label className="flex items-center gap-1">
@@ -353,6 +413,8 @@ export function NewEventModal({
           )}
 
           {kind !== "school_event" &&
+            kind !== "notice" &&
+            kind !== "todo" &&
             (visibility === "selected" || (kind === "lesson" && visibility !== "all")) && (
               <Field label="対象の生徒">
                 <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
@@ -374,7 +436,7 @@ export function NewEventModal({
             )}
 
           {error && (
-            <p className="text-sm" style={{ color: "var(--color-absent)" }}>
+            <p className="text-sm" style={{ color: "var(--color-error)" }}>
               {error}
             </p>
           )}
