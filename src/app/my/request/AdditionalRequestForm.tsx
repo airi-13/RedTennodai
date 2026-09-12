@@ -27,7 +27,7 @@ export function AdditionalRequestForm({ textbooks, schedules, periods }: { textb
     {type === "fixed_slot_change" && <div className="space-y-3"><label className="block text-sm">変更する現在の固定コマ<select name="currentScheduleId" className="mt-1 w-full rounded-md border px-3 py-2 text-sm" defaultValue=""><option value="">選択してください</option>{schedules.map((s) => <option key={s.id} value={s.id}>{DAYS[s.day_of_week]}曜 {periods.find((p) => p.id === s.period_id)?.name ?? ""}</option>)}</select></label><div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm">変更後の曜日<select name="desiredDayOfWeek" className="mt-1 w-full rounded-md border px-3 py-2 text-sm" defaultValue=""><option value="">選択してください</option>{DAYS.map((d, i) => <option key={i} value={i}>{d}曜日</option>)}</select></label><label className="block text-sm">変更後のコマ<select name="desiredPeriodId" className="mt-1 w-full rounded-md border px-3 py-2 text-sm" defaultValue=""><option value="">選択してください</option>{periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div></div>}
 
     <label className="block text-sm">備考・希望内容<textarea name="reason" rows={4} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="その他、教室に伝えたいことがあれば入力してください" /></label>
-    {state.error && <p className="text-sm text-[var(--color-absent)]">{state.error}</p>}
+    {state.error && <p className="text-sm text-[var(--color-error)]">{state.error}</p>}
     <button type="submit" disabled={pending} className="w-full rounded-md px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50" style={{ background: "var(--color-accent)" }}>{pending ? "送信中…" : "申請する"}</button>
   </form>;
 }
