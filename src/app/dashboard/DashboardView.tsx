@@ -13,14 +13,14 @@ function monthLabel(year: number, month: number) {
 }
 
 function itemStyle(item: AdminCalendarDay["items"][number]) {
-  if (item.type === "school_event") return { background: "#E3EEFB" };
-  if (item.type === "announcement") return { background: "#FFF3CD" };
+  if (item.type === "school_event") return { background: "var(--color-school)", color: "white" };
+  if (item.type === "announcement") return { background: "var(--color-juku)", color: "white" };
   if (item.type === "calendar_event") {
-    if (item.eventType === "lesson") return { background: "var(--color-accent)", color: "white" };
-    if (item.eventType === "teacher") return { background: "#E8E0F5" };
-    return { background: "#DDF3E4" };
+    if (item.eventType === "lesson") return { background: "var(--color-makeup)", color: "white", border: "1.5px solid var(--color-makeup-border)" };
+    if (item.eventType === "teacher") return { background: "var(--color-teacher)", color: "white" };
+    return { background: "var(--color-juku)", color: "white" };
   }
-  return { background: "var(--color-accent-soft)" };
+  return { background: "var(--color-teacher)", color: "white" };
 }
 
 function itemLabel(item: AdminCalendarDay["items"][number]) {
@@ -104,28 +104,20 @@ export function DashboardView({
 
         <div className="mb-2 flex flex-wrap gap-3 text-[10px] text-[var(--color-ink-soft)]">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#E3EEFB" }} />
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-school)" }} />
             学校行事
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#FFF3CD" }} />
-            塾のお知らせ
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-juku)" }} />
+            塾のお知らせ・塾の予定
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-accent)" }} />
-            単発授業
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-makeup)", border: "1.5px solid var(--color-makeup-border)" }} />
+            単発授業・振替授業
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#E8E0F5" }} />
-            先生の予定
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#DDF3E4" }} />
-            塾の予定
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-accent-soft)" }} />
-            自分のTODO
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: "var(--color-teacher)" }} />
+            先生の予定・自分のTODO
           </span>
         </div>
 
