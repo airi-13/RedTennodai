@@ -114,7 +114,6 @@ async function buildScheduleRows(
 }
 
 type TableRow = {
-  studentId: number | null; // nullなら新規作成
   loginId: string;
   gender: string | null;
   name: string; // 空欄ならloginIdを仮の名前として使う
@@ -122,17 +121,31 @@ type TableRow = {
   schoolName: string | null;
   gradeText: string | null; // 「小6」等。空欄可
   birthdateText: string | null; // 「2015-4-1」等。空欄可
-  password: string | null; // 新規行では必須。既存行では空欄=変更なし
+  password: string | null; // 新規登録では必須。既存生徒では空欄=変更なし、入力があれば常に上書き
   subjectsText?: string | null;
   lessonCountText?: string | null;
   scheduleText?: string | null;
   note?: string | null;
 };
 
-export type TableRowResult = { loginId: string; ok: boolean; error?: string };
+// エラーの原因となった列を表側で赤く示すための識別子。
+export type TableRowField = "loginId" | "password" | "grade" | "birthdate" | "schedule";
+
+export type TableRowResult = { loginId: string; ok: boolean; error?: string; field?: TableRowField };
+
+class FieldError extends Error {
+  field: TableRowField;
+  constructor(message: string, field: TableRowField) {
+    super(message);
+    this.field = field;
+  }
+}
 
 // 生徒一覧の表(新規行・既存行が混在)をまとめて保存する。
-// studentIdが無い行は新規作成(生徒ID・Passのみ必須)、ある行は更新として扱う。
+// 表側の行位置やIDには頼らず、必ず「生徒ID(login_id)」でその都度DBを検索して
+// 既存/新規を判定する。これにより、行の追加・削除・貼り付けで対応がズレる事故を防ぐ。
+// 生徒IDが既存のものと一致すれば、その生徒の更新として扱う(Passも含めて上書きでよく、
+// 現在と同じ値でもエラーにしない)。一致しなければ新規作成(Passが必須)。
 export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRowResult[]> {
   const { data: subjects, error: subjectsError } = await supabase
     .from("subjects")
@@ -149,17 +162,40 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
   const results: TableRowResult[] = [];
 
   for (const row of rows) {
+    const loginId = row.loginId?.trim() ?? "";
     try {
-      const { schoolLevel, grade } = parseGradeText(row.gradeText);
-      const birthdate = parseBirthdateText(row.birthdateText);
+      if (!loginId) {
+        throw new FieldError("生徒IDは必須です", "loginId");
+      }
 
-      if (row.studentId == null) {
-        // 新規作成: 生徒ID・Passのみ必須。それ以外は空欄可。
-        if (!row.loginId.trim() || !row.password?.trim()) {
-          throw new Error("生徒IDとPassは必須です");
+      let schoolLevel: string | null;
+      let grade: number | null;
+      let birthdate: string | null;
+      try {
+        ({ schoolLevel, grade } = parseGradeText(row.gradeText));
+      } catch (e: any) {
+        throw new FieldError(e.message, "grade");
+      }
+      try {
+        birthdate = parseBirthdateText(row.birthdateText);
+      } catch (e: any) {
+        throw new FieldError(e.message, "birthdate");
+      }
+
+      const { data: existing, error: findError } = await supabase
+        .from("students")
+        .select("id, auth_user_id, school_level, grade")
+        .eq("login_id", loginId)
+        .maybeSingle();
+      if (findError) throw findError;
+
+      if (!existing) {
+        // 新規作成: 生徒IDに加えてPassも必須。
+        if (!row.password?.trim()) {
+          throw new FieldError("新規登録にはPassが必要です", "password");
         }
         const student = await createStudentWithLogin({
-          name: row.name.trim() || row.loginId.trim(),
+          name: row.name.trim() || loginId,
           name_kana: row.nameKana,
           gender: row.gender,
           birthdate,
@@ -167,24 +203,28 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
           school_name: row.schoolName,
           grade,
           note: row.note ?? null,
-          loginId: row.loginId.trim(),
+          loginId,
           password: row.password.trim(),
         });
-        const scheduleRows = await buildScheduleRows(
-          student.id,
-          row.subjectsText,
-          row.scheduleText,
-          subjects,
-          periods,
-          needsEightyMinutes(schoolLevel, grade)
-        );
-        for (const s of scheduleRows) {
-          await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
+        try {
+          const scheduleRows = await buildScheduleRows(
+            student.id,
+            row.subjectsText,
+            row.scheduleText,
+            subjects,
+            periods,
+            needsEightyMinutes(schoolLevel, grade)
+          );
+          for (const s of scheduleRows) {
+            await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
+          }
+        } catch (e: any) {
+          throw new FieldError(e.message, "schedule");
         }
       } else {
-        // 既存生徒の更新。生徒IDはここでは変更しない(表側でも読み取り専用にしている)。
-        await updateStudent(row.studentId, {
-          name: row.name.trim() || row.loginId.trim(),
+        // 既存生徒の更新。生徒ID(login_id)は変更しない(表側でも読み取り専用にしている)。
+        await updateStudent(existing.id, {
+          name: row.name.trim() || loginId,
           name_kana: row.nameKana,
           gender: row.gender,
           birthdate,
@@ -195,48 +235,44 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
         });
 
         if (row.password?.trim()) {
-          const { data: student, error } = await supabase
-            .from("students")
-            .select("auth_user_id")
-            .eq("id", row.studentId)
-            .single();
-          if (error) throw error;
-          if (!student?.auth_user_id) throw new Error("ログイン未発行の生徒のパスワードは変更できません");
-          await updateStudentPassword(student.auth_user_id, row.password.trim());
+          if (!existing.auth_user_id) {
+            throw new FieldError("ログイン未発行の生徒のパスワードは変更できません", "password");
+          }
+          // 現在と同じパスワードでもエラーにせず、そのまま上書き登録する。
+          await updateStudentPassword(existing.auth_user_id, row.password.trim());
         }
 
         if (row.subjectsText?.trim() || row.scheduleText?.trim()) {
-          // 学年欄が空欄(変更なし)の場合、80分/40分授業の判定に現在の学年情報を使う
-          let effectiveSchoolLevel = schoolLevel;
-          let effectiveGrade = grade;
-          if (!row.gradeText?.trim()) {
-            const { data: current, error } = await supabase
-              .from("students")
-              .select("school_level, grade")
-              .eq("id", row.studentId)
-              .single();
-            if (error) throw error;
-            effectiveSchoolLevel = current?.school_level ?? null;
-            effectiveGrade = current?.grade ?? null;
-          }
-          const scheduleRows = await buildScheduleRows(
-            row.studentId,
-            row.subjectsText,
-            row.scheduleText,
-            subjects,
-            periods,
-            needsEightyMinutes(effectiveSchoolLevel, effectiveGrade)
-          );
-          await deleteSchedulesForStudent(row.studentId);
-          for (const s of scheduleRows) {
-            await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
+          // 学年欄が空欄(変更なし)の場合、80分/40分授業の判定には現在の学年情報を使う
+          const effectiveSchoolLevel = row.gradeText?.trim() ? schoolLevel : existing.school_level ?? null;
+          const effectiveGrade = row.gradeText?.trim() ? grade : existing.grade ?? null;
+          try {
+            const scheduleRows = await buildScheduleRows(
+              existing.id,
+              row.subjectsText,
+              row.scheduleText,
+              subjects,
+              periods,
+              needsEightyMinutes(effectiveSchoolLevel, effectiveGrade)
+            );
+            await deleteSchedulesForStudent(existing.id);
+            for (const s of scheduleRows) {
+              await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
+            }
+          } catch (e: any) {
+            throw new FieldError(e.message, "schedule");
           }
         }
       }
 
-      results.push({ loginId: row.loginId, ok: true });
+      results.push({ loginId, ok: true });
     } catch (e: any) {
-      results.push({ loginId: row.loginId || "(生徒ID未入力)", ok: false, error: e?.message ?? "不明なエラー" });
+      results.push({
+        loginId: loginId || "(生徒ID未入力)",
+        ok: false,
+        error: e?.message ?? "不明なエラー",
+        field: e instanceof FieldError ? e.field : undefined,
+      });
     }
   }
 
