@@ -24,7 +24,7 @@ const CALENDAR_EVENT_STATUS_OPTIONS = STATUS_OPTIONS.filter((o) => o.value !== "
 const DIMMED_STATUSES: AttendanceStatus[] = ["makeup", "no_show"];
 
 function statusColor(value: AttendanceStatus) {
-  if (value === "no_show") return "#8A8A8A";
+  if (value === "no_show") return "var(--color-absent)";
   return `var(--color-${value})`;
 }
 
@@ -291,7 +291,7 @@ function StudentRow({
                     ? {
                         background: statusColor(opt.value),
                         borderColor: statusColor(opt.value),
-                        color: "white",
+                        color: opt.value === "absent" || opt.value === "no_show" ? "var(--color-ink)" : "white",
                       }
                     : {
                         borderColor: "var(--color-border)",
@@ -311,7 +311,7 @@ function StudentRow({
       </div>
 
       {errorMsg && (
-        <p className="ml-[7rem] text-xs" style={{ color: "var(--color-absent)" }}>
+        <p className="ml-[7rem] text-xs" style={{ color: "var(--color-error)" }}>
           {errorMsg}
         </p>
       )}
