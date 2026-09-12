@@ -70,9 +70,8 @@ export function StudentsView({
   const editTableRowIds = useMemo(() => visibleStudents.map((s) => s.id), [visibleStudents]);
   const editTableStatuses = useMemo<StudentStatus[]>(() => visibleStudents.map((s) => s.status), [visibleStudents]);
 
-  async function handleSave(rows: string[][], rowIds: (number | null)[]) {
-    const payload = rows.map((row, index) => ({
-      studentId: rowIds[index],
+  async function handleSave(rows: string[][]) {
+    const payload = rows.map((row) => ({
       loginId: row[0]?.trim() ?? "",
       gender: row[1]?.trim() || null,
       name: `${row[2]?.trim() ?? ""} ${row[3]?.trim() ?? ""}`.trim(),
@@ -86,11 +85,7 @@ export function StudentsView({
       scheduleText: row[12]?.trim() || null,
       note: row[13]?.trim() || null,
     }));
-    const results = await saveStudentsTableAction(payload);
-    const failed = results.filter((r) => !r.ok);
-    if (failed.length > 0) {
-      throw new Error(failed.map((f) => `${f.loginId}: ${f.error}`).join(" / "));
-    }
+    return saveStudentsTableAction(payload);
   }
 
   async function handleToggleActive(studentId: number) {
