@@ -27,7 +27,7 @@ export function MakeupRegisterForm({ recordId, minDate, maxDate, periods }: { re
       <button type="submit" disabled={pending} className="rounded-xl px-4 py-3 text-sm font-bold text-white transition hover:opacity-95 disabled:opacity-50" style={{ background: "var(--color-accent)" }}>
         {pending ? "登録中…" : "振替日を登録"}
       </button>
-      {state?.error && <p role="alert" className="text-xs text-[var(--color-absent)] sm:col-span-3">{state.error}</p>}
+      {state?.error && <p role="alert" className="text-xs text-[var(--color-error)] sm:col-span-3">{state.error}</p>}
       {state?.success && <p className="text-xs text-[var(--color-ink-soft)] sm:col-span-3">振替を登録しました。</p>}
     </form>
   );
