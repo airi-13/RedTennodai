@@ -1,45 +1,26 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { sha256Hex } from "@/lib/hash";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 
 const ADMIN_PATHS = ["/attendance", "/students", "/requests", "/admin-calendar", "/materials", "/dashboard"];
 
-export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
-
+// Cloudflare Workers(OpenNext)環境では、middleware内で@supabase/ssrのcreateServerClientを
+// フルに使うと動作が不安定になることが報告されているため、middlewareではCookieの有無だけを
+// 軽量にチェックする(なりすまし防止の実際の検証は各ページ側のcreateAnonClient()に任せる。
+// 不正/期限切れのCookieだった場合はページ側でuserがnullになりログイン画面に戻される)。
+function hasSupabaseSessionCookie(request: NextRequest): boolean {
   const supabaseUrl = process.env.SUPABASE_URL;
-  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!supabaseUrl) return false;
+  const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
+  const prefix = `sb-${projectRef}-auth-token`;
+  return request.cookies.getAll().some((c) => c.name.startsWith(prefix));
+}
 
-  // 生徒ログイン用セッションの確認(Supabase Auth)。環境変数未設定時はスキップ。
-  let studentUserId: string | null = null;
-  if (supabaseUrl && publishableKey) {
-    const supabase = createServerClient(supabaseUrl, publishableKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    studentUserId = user?.id ?? null;
-  }
-
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/my")) {
-    if (!studentUserId) {
+    if (!hasSupabaseSessionCookie(request)) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("next", pathname);
@@ -60,7 +41,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return supabaseResponse;
+  return NextResponse.next();
 }
 
 export const config = {
