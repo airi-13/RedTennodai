@@ -181,3 +181,111 @@ export async function submitAdditionalRequestAction(_prevState: { error?: string
   revalidatePath("/requests");
   redirect("/my/request?submitted=1");
 }
+
+// 欠席登録の取り消し。通常授業からのステータス変更と同じ「開始5分前まで」ルールに従う
+// (まだ開始5分以上前なら、欠席登録をしていなかった状態に戻せる)。
+export async function cancelAbsenceAction(targetDate: string, targetPeriodId: number): Promise<{ error?: string }> {
+  const supabase = await createAnonClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "ログインし直してください" };
+  const { data: student } = await supabase.from("students").select("id").eq("auth_user_id", user.id).maybeSingle();
+  if (!student) return { error: "生徒情報が見つかりません" };
+
+  const { data: record } = await adminSupabase
+    .from("attendance_records")
+    .select("id, status")
+    .eq("student_id", student.id)
+    .eq("date", targetDate)
+    .eq("period_id", targetPeriodId)
+    .maybeSingle();
+  if (!record || record.status !== "absent") return { error: "この授業は欠席登録されていません。" };
+
+  const { data: period } = await supabase.from("periods").select("start_time").eq("id", targetPeriodId).maybeSingle();
+  const now = new Date();
+  if (!isBeforeRegistrationDeadline(targetDate, period?.start_time ?? null, now)) {
+    return { error: "この授業は開始5分前を過ぎているため、欠席の取り消しはできません。" };
+  }
+
+  const { error } = await adminSupabase.from("attendance_records").delete().eq("id", record.id);
+  if (error) return { error: `取り消しに失敗しました (${error.message})` };
+
+  revalidatePath("/my");
+  revalidatePath("/attendance");
+  return {};
+}
+
+// 振替登録の取り消し。ただの欠席の状態に戻す(振替先の情報は消える)。
+// 欠席⇔振替済の切り替えは、通常授業のステータス変更(開始5分前まで)とは別扱いで、
+// いつでも操作できる(振替先を選び直せる期間が実質的な制限になるため)。
+export async function cancelMakeupAction(targetDate: string, targetPeriodId: number): Promise<{ error?: string }> {
+  const supabase = await createAnonClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "ログインし直してください" };
+  const { data: student } = await supabase.from("students").select("id").eq("auth_user_id", user.id).maybeSingle();
+  if (!student) return { error: "生徒情報が見つかりません" };
+
+  const { data: record } = await adminSupabase
+    .from("attendance_records")
+    .select("id, status")
+    .eq("student_id", student.id)
+    .eq("date", targetDate)
+    .eq("period_id", targetPeriodId)
+    .maybeSingle();
+  if (!record || record.status !== "makeup") return { error: "この授業は振替登録されていません。" };
+
+  const { error } = await adminSupabase
+    .from("attendance_records")
+    .update({ status: "absent", makeup_date: null, makeup_period_id: null, makeup_attendance_status: null })
+    .eq("id", record.id);
+  if (error) return { error: `取り消しに失敗しました (${error.message})` };
+
+  revalidatePath("/my");
+  revalidatePath("/attendance");
+  return {};
+}
+
+// 振替先の日時の変更。すでに振替済みのコマに対して、開始5分前ルールに関係なくいつでも
+// 変更できる。振替先自体は「元授業日から4週間以内・現在時刻以降」の制約を維持する。
+export async function changeMakeupAction(
+  _prevState: { error?: string } | undefined,
+  formData: FormData
+): Promise<{ error?: string }> {
+  const supabase = await createAnonClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "ログインし直してください" };
+  const { data: student } = await supabase.from("students").select("id").eq("auth_user_id", user.id).maybeSingle();
+  if (!student) return { error: "生徒情報が見つかりません" };
+
+  const targetDate = String(formData.get("targetDate") ?? "").trim();
+  const targetPeriodId = Number(formData.get("targetPeriodId"));
+  const makeupDate = String(formData.get("makeupDate") ?? "").trim();
+  const makeupPeriodId = Number(formData.get("makeupPeriodId"));
+  if (!targetDate || !targetPeriodId || !makeupDate || !makeupPeriodId) {
+    return { error: "振替日と振替コマを選択してください。" };
+  }
+
+  const { data: record } = await adminSupabase
+    .from("attendance_records")
+    .select("id, status")
+    .eq("student_id", student.id)
+    .eq("date", targetDate)
+    .eq("period_id", targetPeriodId)
+    .maybeSingle();
+  if (!record || record.status !== "makeup") return { error: "この授業は振替登録されていません。" };
+
+  const { data: makeupPeriod } = await supabase.from("periods").select("start_time").eq("id", makeupPeriodId).maybeSingle();
+  const now = new Date();
+  if (!isValidMakeupDestinationSlot(targetDate, makeupDate, makeupPeriod?.start_time ?? null, now)) {
+    return { error: "振替授業は現在時刻以降、元授業日の4週間後23:59までのコマを選択してください。" };
+  }
+
+  const { error } = await adminSupabase
+    .from("attendance_records")
+    .update({ makeup_date: makeupDate, makeup_period_id: makeupPeriodId, makeup_attendance_status: null })
+    .eq("id", record.id);
+  if (error) return { error: `変更に失敗しました (${error.message})` };
+
+  revalidatePath("/my");
+  revalidatePath("/attendance");
+  return {};
+}
