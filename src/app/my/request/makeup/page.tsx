@@ -63,22 +63,30 @@ export default async function MakeupRegisterPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {candidates.map((record) => (
-                <div key={record.id} className="rounded-xl border border-[var(--color-border)] bg-white/50 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-bold">{formatDate(record.date)}　{subjectById.get(record.subject_id) ?? "授業"}</p>
-                      <p className="mt-1 text-xs text-[var(--color-ink-soft)]">{periodById.get(record.period_id) ?? "コマ未定"} ・ {record.status === "makeup" ? "振替" : "欠席"}</p>
+              {candidates.map((record) => {
+                const fourWeeksAfterSource = toIso(new Date(new Date(record.date).getTime() + 28 * 24 * 60 * 60 * 1000));
+                const windowClosed = fourWeeksAfterSource < todayIso;
+                return (
+                  <div key={record.id} className="rounded-xl border border-[var(--color-border)] bg-white/50 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-bold">{formatDate(record.date)}　{subjectById.get(record.subject_id) ?? "授業"}</p>
+                        <p className="mt-1 text-xs text-[var(--color-ink-soft)]">{periodById.get(record.period_id) ?? "コマ未定"} ・ {record.status === "makeup" ? "振替" : "欠席"}</p>
+                      </div>
                     </div>
+                    {windowClosed ? (
+                      <p className="mt-3 text-xs text-[var(--color-ink-soft)]">振替登録できる期間(欠席日から4週間)を過ぎています。</p>
+                    ) : (
+                      <MakeupRegisterForm
+                        recordId={record.id}
+                        minDate={todayIso}
+                        maxDate={fourWeeksAfterSource}
+                        periods={periods ?? []}
+                      />
+                    )}
                   </div>
-                  <MakeupRegisterForm
-                    recordId={record.id}
-                    minDate={record.date}
-                    maxDate={toIso(new Date(new Date(record.date).getTime() + 28 * 24 * 60 * 60 * 1000)) < todayIso ? toIso(new Date(new Date(record.date).getTime() + 28 * 24 * 60 * 60 * 1000)) : todayIso}
-                    periods={periods ?? []}
-                  />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
