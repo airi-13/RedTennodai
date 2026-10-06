@@ -48,6 +48,10 @@ export async function registerMakeupAction(
   const sourceDate = parseDate(record.date);
   const destinationDate = parseDate(makeupDate);
   if (!sourceDate || !destinationDate) return { error: "日付が正しくありません" };
+  const today = parseDate(toIso(new Date()))!;
+  if (destinationDate < today) {
+    return { error: "振替日は今日以降の日付を選択してください" };
+  }
   const maxDate = new Date(sourceDate);
   maxDate.setDate(maxDate.getDate() + 28);
   if (destinationDate < sourceDate || destinationDate > maxDate) {
