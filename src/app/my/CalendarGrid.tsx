@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import type { CalendarDay, CalendarDayItem } from "@/lib/data/calendar";
 import { submitRequestAction, cancelAbsenceAction, cancelMakeupAction, changeMakeupAction } from "@/app/my/request/actions";
-import { MAKEUP_LESSON_NOTICE } from "@/lib/attendance-rules";
+import { registerMakeupAction } from "@/app/my/request/makeup/actions";
+import { MAKEUP_LESSON_NOTICE, isBeforeRegistrationDeadline } from "@/lib/attendance-rules";
 
 const CALENDAR_COLORS = {
   present: "var(--color-present)",
@@ -106,6 +107,7 @@ function LessonModal({ selected, periods, onClose }: { selected: { date: string;
         date={date}
         periodId={period?.id ?? ""}
         item={item}
+        periods={periods}
         onClose={onClose}
       />
     );
@@ -147,24 +149,31 @@ function CalendarEventModal({ item, onClose }: { item: Extract<CalendarDayItem, 
 
 function MakeupDestinationModal({ selected, targetPeriodId, sourceTime, destinationTime, alreadyAbsent, onClose }: { selected: { date: string; item: Extract<CalendarDayItem, { type: "lesson" }> }; targetPeriodId: number | ""; sourceTime: string; destinationTime: string; alreadyAbsent: boolean; onClose: () => void }) {
   const [state, formAction, isPending] = useActionState(submitRequestAction, undefined);
-  return <Overlay onClose={onClose}><div className="space-y-2"><p className="font-bold">振替授業</p><p className="text-sm">{sourceTime}</p><p className="pl-8 text-sm">↓</p><p className="text-sm">{destinationTime}</p></div>{!alreadyAbsent && <form action={formAction} className="space-y-3"><input type="hidden" name="requestType" value="absence" /><input type="hidden" name="targetDate" value={selected.date} /><input type="hidden" name="targetPeriodId" value={targetPeriodId} /><textarea name="reason" rows={2} placeholder="理由・連絡事項" className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />{state?.error && <p className="text-sm" style={{ color: "var(--color-error)" }}>{state.error}</p>}<button type="submit" disabled={isPending || targetPeriodId === ""} className="w-full rounded-md py-2 text-sm font-medium text-white disabled:opacity-50" style={{ background: CALENDAR_COLORS.absent }}>欠席</button><p className="text-[10px] text-[var(--color-ink-soft)]">授業開始5分前まで申請できます。</p><p className="text-[10px] text-[var(--color-ink-soft)]">{MAKEUP_LESSON_NOTICE}</p></form>}{alreadyAbsent && <p className="text-sm font-medium" style={{ color: "var(--color-ink)" }}>欠席</p>}</Overlay>;
+  return <Overlay onClose={onClose}><div className="space-y-2"><p className="font-bold">振替授業</p><p className="text-sm">{sourceTime}</p><p className="pl-8 text-sm">↓</p><p className="text-sm">{destinationTime}</p></div>{!alreadyAbsent && <form action={formAction} className="space-y-3"><input type="hidden" name="requestType" value="absence" /><input type="hidden" name="targetDate" value={selected.date} /><input type="hidden" name="targetPeriodId" value={targetPeriodId} /><textarea name="reason" rows={2} placeholder="理由・連絡事項" className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm" />{state?.error && <p className="text-sm" style={{ color: "var(--color-error)" }}>{state.error}</p>}<button type="submit" disabled={isPending || targetPeriodId === ""} className="w-full rounded-md py-2 text-sm font-medium text-white disabled:opacity-50" style={{ background: CALENDAR_COLORS.absent }}>欠席</button><p className="text-[10px] text-[var(--color-ink-soft)]">授業開始5分前まで申請できます。</p><p className="text-[10px] text-[var(--color-ink-soft)]">{MAKEUP_LESSON_NOTICE}</p></form>}{alreadyAbsent && <div className="space-y-1"><p className="text-sm font-medium" style={{ color: "var(--color-ink)" }}>欠席</p><p className="text-[10px] text-[var(--color-ink-soft)]">振替日を変更する場合は、元の授業日のコマから変更してください。</p></div>}</Overlay>;
 }
 
-// すでに欠席登録されている通常授業のコマ。開始5分前ルールに従って取り消しができる
-// (5分前を過ぎている場合は、サーバー側がエラーを返しその旨を表示する)。
+// すでに欠席登録されている通常授業のコマ。
+// ・振替先の登録: 開始5分前ルールとは別で、いつでも登録できる(元の授業日から4週間以内のみ)。
+// ・欠席登録の取り消し: 通常授業のステータス変更と同じ「開始5分前まで」のみ可能。
 function AbsentStatusModal({
   date,
   periodId,
   item,
+  periods,
   onClose,
 }: {
   date: string;
   periodId: number | "";
   item: Extract<CalendarDayItem, { type: "lesson" }>;
+  periods: { id: number; name: string; start_time: string | null }[];
   onClose: () => void;
 }) {
+  const [mode, setMode] = useState<"view" | "register">("view");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  const period = periods.find((p) => p.id === periodId);
+  const canCancelAbsence = isBeforeRegistrationDeadline(date, period?.start_time ?? null, new Date());
 
   function cancel() {
     if (periodId === "") return;
@@ -176,25 +185,125 @@ function AbsentStatusModal({
     });
   }
 
+  if (mode === "register" && item.attendanceRecordId != null) {
+    return (
+      <Overlay onClose={onClose}>
+        <RegisterMakeupInlineForm
+          date={date}
+          recordId={item.attendanceRecordId}
+          periods={periods}
+          onDone={onClose}
+          onBack={() => setMode("view")}
+        />
+      </Overlay>
+    );
+  }
+
   return (
     <Overlay onClose={onClose}>
       <ModalHeader date={date} item={item} onClose={onClose} />
       <p className="text-sm font-medium" style={{ color: "var(--color-ink)" }}>欠席登録済み</p>
-      <button
-        onClick={cancel}
-        disabled={isPending}
-        className="w-full rounded-md border py-2 text-sm font-medium disabled:opacity-50"
-        style={{ borderColor: "var(--color-error)", color: "var(--color-error)" }}
-      >
-        欠席登録を取り消す
-      </button>
-      <p className="text-[10px] text-[var(--color-ink-soft)]">授業開始5分前まで取り消せます。</p>
+      {item.attendanceRecordId != null && (
+        <button
+          onClick={() => setMode("register")}
+          className="w-full rounded-md py-2 text-sm font-medium text-white"
+          style={{ background: "var(--color-accent)" }}
+        >
+          振替日を登録する
+        </button>
+      )}
+      {canCancelAbsence ? (
+        <>
+          <button
+            onClick={cancel}
+            disabled={isPending}
+            className="w-full rounded-md border py-2 text-sm font-medium disabled:opacity-50"
+            style={{ borderColor: "var(--color-error)", color: "var(--color-error)" }}
+          >
+            欠席登録を取り消す
+          </button>
+          <p className="text-[10px] text-[var(--color-ink-soft)]">授業開始5分前まで取り消せます。</p>
+        </>
+      ) : (
+        <p className="text-[10px] text-[var(--color-ink-soft)]">授業開始5分前を過ぎているため、欠席登録の取り消しはできません(振替日の登録はできます)。</p>
+      )}
       {error && (
         <p className="text-sm" style={{ color: "var(--color-error)" }}>
           {error}
         </p>
       )}
     </Overlay>
+  );
+}
+
+// 欠席コマに対する、初めての振替日登録フォーム。登録できたらカレンダーに戻る。
+function RegisterMakeupInlineForm({
+  date,
+  recordId,
+  periods,
+  onDone,
+  onBack,
+}: {
+  date: string;
+  recordId: number;
+  periods: { id: number; name: string; start_time: string | null }[];
+  onDone: () => void;
+  onBack: () => void;
+}) {
+  const [state, formAction, isPending] = useActionState(registerMakeupAction, undefined);
+  const maxMakeup = fourWeeksAfter(date);
+  const today = todayString();
+
+  useEffect(() => {
+    if (state?.success) onDone();
+  }, [state, onDone]);
+
+  return (
+    <form action={formAction} className="space-y-3">
+      <p className="font-bold">振替日を登録</p>
+      <input type="hidden" name="recordId" value={recordId} />
+      <label className="block text-xs text-[var(--color-ink-soft)]">
+        振替日
+        <input
+          type="date"
+          name="makeupDate"
+          min={today}
+          max={maxMakeup}
+          required
+          className="mt-1 w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+        />
+      </label>
+      <label className="block text-xs text-[var(--color-ink-soft)]">
+        振替コマ
+        <select name="makeupPeriodId" required className="mt-1 w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm">
+          <option value="">コマを選択</option>
+          {periods.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} {p.start_time?.slice(0, 5)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="text-[10px] text-[var(--color-ink-soft)]">振替日は、欠席した授業日から4週間以内で選択できます。</p>
+      {state?.error && (
+        <p className="text-sm" style={{ color: "var(--color-error)" }}>
+          {state.error}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="flex-1 rounded-md py-2 text-sm font-medium text-white disabled:opacity-50"
+          style={{ background: "var(--color-accent)" }}
+        >
+          登録する
+        </button>
+        <button type="button" onClick={onBack} className="rounded-md border border-[var(--color-border)] px-3 py-2 text-sm">
+          戻る
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -291,6 +400,11 @@ function ChangeMakeupForm({
   const [makeupDate, setMakeupDate] = useState(currentMakeupDate);
   const maxMakeup = fourWeeksAfter(date);
   const today = todayString();
+
+  // 変更に成功したら(エラーなしで結果が返ってきたら)カレンダーに戻る。
+  useEffect(() => {
+    if (state && !state.error) onDone();
+  }, [state, onDone]);
 
   return (
     <form action={formAction} className="space-y-3">
