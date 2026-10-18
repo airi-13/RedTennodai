@@ -141,10 +141,12 @@ function PeriodCard({
         </p>
       ) : (
         <ul className="divide-y divide-[var(--color-border)]">
+          {/* 行のkeyに日付を含める: StudentRowはstatus等をuseStateで保持するため、
+              日付を跨いでkeyが同じだと前の日の表示状態を使い回してしまう(別の日が欠席に見えるバグの原因) */}
           {slots.map((slot) =>
             slot.isTransferAddition ? (
               <StudentRow
-                key={`transfer-${slot.studentId}-${slot.periodId}`}
+                key={`${date}-transfer-${slot.studentId}-${slot.periodId}`}
                 slot={slot}
                 subjects={subjects}
                 periods={periods}
@@ -154,7 +156,7 @@ function PeriodCard({
               />
             ) : (
               <StudentRow
-                key={`${slot.studentId}-${slot.periodId}`}
+                key={`${date}-${slot.studentId}-${slot.periodId}`}
                 slot={slot}
                 subjects={subjects}
                 periods={periods}
