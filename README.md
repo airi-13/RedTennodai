@@ -14,10 +14,10 @@ src/
 │   ├── types.ts           DBスキーマに対応する型定義
 │   └── data/               データ層(テーブルごとの読み書き関数)
 ├── app/
-│   ├── dashboard/          管理者トップページ(カレンダー)
+│   ├── dashboard/          管理者トップページ(カレンダー全体。予定の登録・編集・一括削除)
 │   ├── attendance/         出欠入力
 │   ├── students/           生徒管理
-│   ├── admin-calendar/     休講・お知らせ・学校行事・TODO管理
+│   ├── admin-calendar/     開講枠(曜日×コマ)と受付人数の管理
 │   ├── materials/          教材・料金設定
 │   ├── requests/           生徒の欠席・振替 履歴
 │   ├── login/ my/          生徒ログイン後の画面一式
