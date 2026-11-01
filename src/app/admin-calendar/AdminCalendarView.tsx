@@ -2,83 +2,40 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import type { Announcement, Closure } from "@/lib/data/announcements";
-import type { School } from "@/lib/data/schools";
-import type { SchoolEvent } from "@/lib/data/school-events";
-import type { AdminTodo } from "@/lib/data/admin-todos";
-import type { Notice } from "@/lib/data/notices";
 import type { Period, PeriodAvailability } from "@/lib/types";
-import {
-  setClosureAction,
-  clearClosureAction,
-  createAnnouncementAction,
-  deleteAnnouncementAction,
-  createSchoolEventAction,
-  deleteSchoolEventAction,
-  deleteSchoolAction,
-  createTodoAction,
-  toggleTodoAction,
-  deleteTodoAction,
-  createNoticeAction,
-  deleteNoticeAction,
-  setPeriodAvailabilityAction,
-} from "./actions";
+import { setPeriodAvailabilityAction } from "./actions";
 
 const DOW_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 
-function monthLabel(year: number, month: number) {
-  return `${year}年${month}月`;
-}
-
+// このページは「開講枠(曜日×コマの開講/休止)」と「受付人数の上限」の管理専用。
+// 休講・お知らせ・学校行事・塾の予定・TODOなどは、カレンダー(全体)の「新規登録」「編集」から操作する。
 export function AdminCalendarView({
-  year,
-  month,
-  closures,
-  announcements,
-  schoolEvents,
-  schools,
-  todos,
-  notices,
   periods,
   periodAvailability,
   enrollmentCounts,
 }: {
-  year: number;
-  month: number;
-  closures: Closure[];
-  announcements: Announcement[];
-  schoolEvents: (SchoolEvent & { schoolName: string })[];
-  schools: School[];
-  todos: AdminTodo[];
-  notices: Notice[];
   periods: Period[];
   periodAvailability: PeriodAvailability[];
   enrollmentCounts: Record<string, number>;
 }) {
-  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
-  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
-
   return (
-    <div className="space-y-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">カレンダー管理</h1>
-        <div className="flex items-center gap-3 text-sm">
-          <Link href={`/admin-calendar?y=${prev.y}&m=${prev.m}`} className="underline">
-            ← 前月
+    <div className="space-y-8">
+      <div className="space-y-1">
+        <h1 className="text-lg font-semibold">カレンダー管理(開講枠・人数)</h1>
+        <p className="text-xs text-[var(--color-ink-soft)]">
+          曜日×コマごとの開講/休止と、受付人数の上限を設定します。休講・お知らせ・学校行事・TODOなどの予定は、
+          <Link href="/dashboard" className="underline">
+            カレンダー(全体)
           </Link>
-          <span className="font-medium">{monthLabel(year, month)}</span>
-          <Link href={`/admin-calendar?y=${next.y}&m=${next.m}`} className="underline">
-            翌月 →
-          </Link>
-        </div>
+          の「新規登録」「編集」から操作してください。
+        </p>
       </div>
 
-      <NoticeSection notices={notices} />
-      <PeriodAvailabilitySection periods={periods} periodAvailability={periodAvailability} enrollmentCounts={enrollmentCounts} />
-      <ClosureSection closures={closures} />
-      <AnnouncementSection announcements={announcements} />
-      <SchoolEventSection schoolEvents={schoolEvents} schools={schools} />
-      <TodoSection todos={todos} />
+      <PeriodAvailabilitySection
+        periods={periods}
+        periodAvailability={periodAvailability}
+        enrollmentCounts={enrollmentCounts}
+      />
     </div>
   );
 }
@@ -230,391 +187,11 @@ function PeriodAvailabilitySection({
   );
 }
 
-function NoticeSection({ notices }: { notices: Notice[] }) {
-  const [isPending, startTransition] = useTransition();
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-
-  return (
-    <SectionCard title="生徒トップページのお知らせ欄">
-      <p className="text-xs text-[var(--color-ink-soft)]">
-        日付に紐づかない一般的なお知らせです。新しいものから生徒側カレンダーの上部に表示されます。
-      </p>
-      <div className="space-y-2">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="タイトル"
-          className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="本文(任意)"
-          rows={2}
-          className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <button
-          disabled={isPending || !title.trim()}
-          onClick={() =>
-            startTransition(async () => {
-              await createNoticeAction({ title, body: body || undefined });
-              setTitle("");
-              setBody("");
-            })
-          }
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--color-accent)" }}
-        >
-          掲載する
-        </button>
-      </div>
-      <ul className="space-y-1 text-sm">
-        {notices.map((n) => (
-          <li key={n.id} className="flex items-start justify-between gap-2">
-            <span>
-              <span className="font-medium">{n.title}</span>
-              {n.body && <span className="text-[var(--color-ink-soft)]"> — {n.body}</span>}
-            </span>
-            <button
-              disabled={isPending}
-              onClick={() => startTransition(() => deleteNoticeAction(n.id))}
-              className="shrink-0 text-xs text-[var(--color-ink-soft)] underline"
-            >
-              削除
-            </button>
-          </li>
-        ))}
-        {notices.length === 0 && (
-          <p className="text-sm text-[var(--color-ink-soft)]">まだありません</p>
-        )}
-      </ul>
-    </SectionCard>
-  );
-}
-
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <h2 className="font-medium">{title}</h2>
       {children}
     </section>
-  );
-}
-
-function ClosureSection({ closures }: { closures: Closure[] }) {
-  const [isPending, startTransition] = useTransition();
-  const [date, setDate] = useState("");
-  const [status, setStatus] = useState<"closed" | "open">("closed");
-  const [note, setNote] = useState("");
-
-  return (
-    <SectionCard title="休講・特別開講(1日単位の例外設定)">
-      <p className="text-xs text-[var(--color-ink-soft)]">
-        デフォルトは日曜・月曜が休講。ここで登録した日はデフォルトより優先されます(例: 月曜でも特別開講にする、平日を臨時休講にする、など)。
-      </p>
-      <div className="flex flex-wrap items-end gap-2">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as "closed" | "open")}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        >
-          <option value="closed">休講</option>
-          <option value="open">開講(特別)</option>
-        </select>
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="メモ(任意)"
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <button
-          disabled={isPending || !date}
-          onClick={() =>
-            startTransition(async () => {
-              await setClosureAction(date, status, note || undefined);
-              setDate("");
-              setNote("");
-            })
-          }
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--color-accent)" }}
-        >
-          登録
-        </button>
-      </div>
-      <ul className="space-y-1 text-sm">
-        {closures.map((c) => (
-          <li key={c.closure_date} className="flex items-center justify-between">
-            <span>
-              {c.closure_date} — {c.status === "closed" ? "休講" : "開講(特別)"}
-              {c.note && ` (${c.note})`}
-            </span>
-            <button
-              disabled={isPending}
-              onClick={() => startTransition(() => clearClosureAction(c.closure_date))}
-              className="text-xs text-[var(--color-ink-soft)] underline"
-            >
-              解除
-            </button>
-          </li>
-        ))}
-      </ul>
-    </SectionCard>
-  );
-}
-
-function AnnouncementSection({ announcements }: { announcements: Announcement[] }) {
-  const [isPending, startTransition] = useTransition();
-  const [date, setDate] = useState("");
-  const [title, setTitle] = useState("");
-  const [timeRange, setTimeRange] = useState("");
-  const [note, setNote] = useState("");
-
-  return (
-    <SectionCard title="塾からのお知らせ・予定">
-      <div className="flex flex-wrap items-end gap-2">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="タイトル"
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <input
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-          placeholder="時間帯(任意)"
-          className="w-28 rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="メモ(任意)"
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <button
-          disabled={isPending || !date || !title}
-          onClick={() =>
-            startTransition(async () => {
-              await createAnnouncementAction({
-                event_date: date,
-                title,
-                time_range: timeRange || undefined,
-                note: note || undefined,
-              });
-              setDate("");
-              setTitle("");
-              setTimeRange("");
-              setNote("");
-            })
-          }
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--color-accent)" }}
-        >
-          追加
-        </button>
-      </div>
-      <ul className="space-y-1 text-sm">
-        {announcements.map((a) => (
-          <li key={a.id} className="flex items-center justify-between">
-            <span>
-              {a.event_date} {a.time_range && `(${a.time_range})`} — {a.title}
-            </span>
-            <button
-              disabled={isPending}
-              onClick={() => startTransition(() => deleteAnnouncementAction(a.id))}
-              className="text-xs text-[var(--color-ink-soft)] underline"
-            >
-              削除
-            </button>
-          </li>
-        ))}
-      </ul>
-    </SectionCard>
-  );
-}
-
-function SchoolEventSection({
-  schoolEvents,
-  schools,
-}: {
-  schoolEvents: (SchoolEvent & { schoolName: string })[];
-  schools: School[];
-}) {
-  const [isPending, startTransition] = useTransition();
-  const [schoolName, setSchoolName] = useState("");
-  const [date, setDate] = useState("");
-  const [title, setTitle] = useState("");
-  const [note, setNote] = useState("");
-
-  return (
-    <SectionCard title="生徒の学校行事">
-      <p className="text-xs text-[var(--color-ink-soft)]">
-        学校名は既存のものと同じ表記で入力すると同じ学校として扱われます(新しい名前なら自動的に学校として登録されます)。登録済みの学校: {schools.map((s) => s.name).join("、") || "なし"}
-      </p>
-      <div className="flex flex-wrap items-end gap-2">
-        <input
-          value={schoolName}
-          onChange={(e) => setSchoolName(e.target.value)}
-          placeholder="学校名"
-          list="school-list"
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <datalist id="school-list">
-          {schools.map((s) => (
-            <option key={s.id} value={s.name} />
-          ))}
-        </datalist>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="行事名"
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="メモ(任意)"
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <button
-          disabled={isPending || !schoolName || !date || !title}
-          onClick={() =>
-            startTransition(async () => {
-              await createSchoolEventAction({
-                schoolName,
-                event_date: date,
-                title,
-                note: note || undefined,
-              });
-              setDate("");
-              setTitle("");
-              setNote("");
-            })
-          }
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--color-accent)" }}
-        >
-          追加
-        </button>
-      </div>
-      <ul className="space-y-1 text-sm">
-        {schoolEvents.map((e) => (
-          <li key={e.id} className="flex items-center justify-between">
-            <span>
-              {e.event_date} [{e.schoolName}] {e.title}
-            </span>
-            <button
-              disabled={isPending}
-              onClick={() => startTransition(() => deleteSchoolEventAction(e.id))}
-              className="text-xs text-[var(--color-ink-soft)] underline"
-            >
-              削除
-            </button>
-          </li>
-        ))}
-      </ul>
-      {schools.length > 0 && (
-        <details className="text-xs text-[var(--color-ink-soft)]">
-          <summary className="cursor-pointer">学校一覧を編集</summary>
-          <ul className="mt-2 space-y-1">
-            {schools.map((s) => (
-              <li key={s.id} className="flex items-center justify-between">
-                <span>{s.name}</span>
-                <button
-                  disabled={isPending}
-                  onClick={() => startTransition(() => deleteSchoolAction(s.id))}
-                  className="underline"
-                >
-                  削除
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </SectionCard>
-  );
-}
-
-function TodoSection({ todos }: { todos: AdminTodo[] }) {
-  const [isPending, startTransition] = useTransition();
-  const [date, setDate] = useState("");
-  const [content, setContent] = useState("");
-
-  return (
-    <SectionCard title="自分のTODO(生徒には表示されません)">
-      <div className="flex flex-wrap items-end gap-2">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <input
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="内容"
-          className="flex-1 rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-        />
-        <button
-          disabled={isPending || !date || !content}
-          onClick={() =>
-            startTransition(async () => {
-              await createTodoAction({ todo_date: date, content });
-              setDate("");
-              setContent("");
-            })
-          }
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--color-accent)" }}
-        >
-          追加
-        </button>
-      </div>
-      <ul className="space-y-1 text-sm">
-        {todos.map((t) => (
-          <li key={t.id} className="flex items-center justify-between gap-2">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={t.done}
-                onChange={(e) =>
-                  startTransition(() => toggleTodoAction(t.id, e.target.checked))
-                }
-              />
-              <span style={t.done ? { textDecoration: "line-through", opacity: 0.5 } : undefined}>
-                {t.todo_date} {t.content}
-              </span>
-            </label>
-            <button
-              disabled={isPending}
-              onClick={() => startTransition(() => deleteTodoAction(t.id))}
-              className="text-xs text-[var(--color-ink-soft)] underline"
-            >
-              削除
-            </button>
-          </li>
-        ))}
-      </ul>
-    </SectionCard>
   );
 }

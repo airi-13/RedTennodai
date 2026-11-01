@@ -3,6 +3,7 @@ import { getPeriods } from "@/lib/data/periods";
 import { getSubjects } from "@/lib/data/subjects";
 import { getStudents } from "@/lib/data/students";
 import { listSchools } from "@/lib/data/schools";
+import { listRecentNotices } from "@/lib/data/notices";
 import { DashboardView } from "./DashboardView";
 
 export const dynamic = "force-dynamic";
@@ -17,14 +18,15 @@ export default async function DashboardPage({
   const year = params.y ? Number(params.y) : now.getFullYear();
   const month = params.m ? Number(params.m) : now.getMonth() + 1;
 
-  let days, periods, subjects, students, schools;
+  let days, periods, subjects, students, schools, notices;
   try {
-    [days, periods, subjects, students, schools] = await Promise.all([
+    [days, periods, subjects, students, schools, notices] = await Promise.all([
       buildAdminCalendar(year, month),
       getPeriods(),
       getSubjects(),
       getStudents(),
       listSchools(),
+      listRecentNotices(20),
     ]);
   } catch (e) {
     console.error("DashboardPage failed to load data:", e);
@@ -47,6 +49,7 @@ export default async function DashboardPage({
       subjects={subjects}
       students={students}
       schools={schools}
+      notices={notices}
     />
   );
 }
