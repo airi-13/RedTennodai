@@ -6,15 +6,16 @@ import type { School } from "@/lib/data/schools";
 import type { CalendarEventType, CalendarEventVisibility } from "@/lib/data/calendar-events";
 import { createCalendarEventAction } from "@/app/admin-calendar/actions";
 import { createSchoolEventAction } from "@/app/admin-calendar/actions";
-import { createNoticeAction, createTodoAction } from "@/app/admin-calendar/actions";
+import { createNoticeAction, createTodoAction, setClosureAction } from "@/app/admin-calendar/actions";
 
-type Kind = "school_event" | "lesson" | "teacher" | "juku" | "notice" | "todo";
+type Kind = "school_event" | "lesson" | "teacher" | "juku" | "closure" | "notice" | "todo";
 
 const KIND_LABEL: Record<Kind, string> = {
   school_event: "学校行事",
   lesson: "単発授業",
   teacher: "先生の予定(面談など)",
-  juku: "塾の予定",
+  juku: "塾のお知らせ・予定",
+  closure: "休講・特別開講",
   notice: "お知らせ欄",
   todo: "自分のTODO",
 };
@@ -24,12 +25,15 @@ export function NewEventModal({
   subjects,
   students,
   schools,
+  defaultDates,
   onClose,
 }: {
   periods: Period[];
   subjects: Subject[];
   students: Student[];
   schools: School[];
+  // カレンダーで選択した日を最初から入れておく(編集モードの「選択した日に追加」用)
+  defaultDates?: string[];
   onClose: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -37,8 +41,15 @@ export function NewEventModal({
   const [error, setError] = useState<string | null>(null);
 
   // 共通
-  const [date, setDate] = useState("");
+  // 日付は複数指定できる(同じ内容を複数日にまとめて登録するため)
+  const [dates, setDates] = useState<string[]>(() => [...new Set(defaultDates ?? [])].sort());
+  const [dateInput, setDateInput] = useState("");
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("");
   const [title, setTitle] = useState("");
+
+  // 休講・特別開講
+  const [closureStatus, setClosureStatus] = useState<"closed" | "open">("closed");
   const [note, setNote] = useState("");
 
   // 学校行事
@@ -70,9 +81,49 @@ export function NewEventModal({
     setStudentIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
   }
 
+  const MAX_DATES = 62;
+
+  function addDate(value: string) {
+    if (!value) return;
+    setDates((prev) => (prev.includes(value) ? prev : [...prev, value].sort()));
+  }
+
+  function removeDate(value: string) {
+    setDates((prev) => prev.filter((d) => d !== value));
+  }
+
+  // 期間(開始日〜終了日)を1日ずつに展開して追加する。UTCで進めるのでタイムゾーンによるずれは起きない。
+  function addRange() {
+    setError(null);
+    if (!rangeFrom || !rangeTo) {
+      setError("期間の開始日と終了日を入力してください。");
+      return;
+    }
+    if (rangeFrom > rangeTo) {
+      setError("終了日は開始日以降にしてください。");
+      return;
+    }
+    const [y1, m1, d1] = rangeFrom.split("-").map(Number);
+    const [y2, m2, d2] = rangeTo.split("-").map(Number);
+    const end = Date.UTC(y2, m2 - 1, d2);
+    const expanded: string[] = [];
+    for (let t = Date.UTC(y1, m1 - 1, d1); t <= end; t += 86400000) {
+      expanded.push(new Date(t).toISOString().slice(0, 10));
+      if (expanded.length > MAX_DATES) break;
+    }
+    if (expanded.length > MAX_DATES) {
+      setError(`一度に追加できるのは${MAX_DATES}日までです。期間を分けてください。`);
+      return;
+    }
+    setDates((prev) => [...new Set([...prev, ...expanded])].sort());
+    setRangeFrom("");
+    setRangeTo("");
+  }
+
   function submit() {
     setError(null);
 
+    // お知らせ欄は日付を持たない(生徒トップページに新しい順で表示される)
     if (kind === "notice") {
       if (!title.trim()) {
         setError("タイトルを入力してください。");
@@ -89,49 +140,40 @@ export function NewEventModal({
       return;
     }
 
-    if (!date) {
-      setError("日付を入力してください。");
+    if (dates.length === 0) {
+      setError("日付を1つ以上追加してください。");
+      return;
+    }
+    if (dates.length > MAX_DATES) {
+      setError(`一度に登録できるのは${MAX_DATES}日までです。`);
       return;
     }
 
-    if (kind === "todo") {
+    // 種類ごとに入力を検証し、「1日分を登録する処理」を組み立てる。
+    // 選んだ日付の数だけ同じ処理を繰り返す(登録内容は日付以外すべて同じ)。
+    let runOne: (date: string) => Promise<unknown>;
+
+    if (kind === "closure") {
+      runOne = (d) => setClosureAction(d, closureStatus, note.trim() || undefined);
+    } else if (kind === "todo") {
       if (!title.trim()) {
         setError("内容を入力してください。");
         return;
       }
-      startTransition(async () => {
-        try {
-          await createTodoAction({ todo_date: date, content: title.trim() });
-          onClose();
-        } catch (e: any) {
-          setError(e?.message ?? "登録に失敗しました");
-        }
-      });
-      return;
-    }
-
-    if (kind === "school_event") {
+      runOne = (d) => createTodoAction({ todo_date: d, content: title.trim() });
+    } else if (kind === "school_event") {
       if (!schoolName.trim() || !title.trim()) {
         setError("学校名と行事名を入力してください。");
         return;
       }
-      startTransition(async () => {
-        try {
-          await createSchoolEventAction({
-            schoolName: schoolName.trim(),
-            event_date: date,
-            title: title.trim(),
-            note: note.trim() || undefined,
-          });
-          onClose();
-        } catch (e: any) {
-          setError(e?.message ?? "登録に失敗しました");
-        }
-      });
-      return;
-    }
-
-    if (kind === "lesson") {
+      runOne = (d) =>
+        createSchoolEventAction({
+          schoolName: schoolName.trim(),
+          event_date: d,
+          title: title.trim(),
+          note: note.trim() || undefined,
+        });
+    } else if (kind === "lesson") {
       if (!periodId || !subjectId) {
         setError("コマと科目を選んでください。");
         return;
@@ -141,40 +183,31 @@ export function NewEventModal({
         return;
       }
       const subjectName = subjects.find((s) => s.id === subjectId)?.name ?? "授業";
-      startTransition(async () => {
-        try {
-          await createCalendarEventAction({
-            eventType: "lesson",
-            eventDate: date,
-            periodId: Number(periodId),
-            subjectId: Number(subjectId),
-            title: title.trim() || subjectName,
-            note: note.trim() || undefined,
-            visibility,
-            studentIds,
-          });
-          onClose();
-        } catch (e: any) {
-          setError(e?.message ?? "登録に失敗しました");
-        }
-      });
-      return;
-    }
-
-    // teacher / juku
-    if (!title.trim()) {
-      setError("タイトルを入力してください。");
-      return;
-    }
-    if (visibility === "selected" && studentIds.length === 0) {
-      setError("対象の生徒を1人以上選んでください。");
-      return;
-    }
-    startTransition(async () => {
-      try {
-        await createCalendarEventAction({
+      runOne = (d) =>
+        createCalendarEventAction({
+          eventType: "lesson",
+          eventDate: d,
+          periodId: Number(periodId),
+          subjectId: Number(subjectId),
+          title: title.trim() || subjectName,
+          note: note.trim() || undefined,
+          visibility,
+          studentIds,
+        });
+    } else {
+      // teacher / juku
+      if (!title.trim()) {
+        setError("タイトルを入力してください。");
+        return;
+      }
+      if (visibility === "selected" && studentIds.length === 0) {
+        setError("対象の生徒を1人以上選んでください。");
+        return;
+      }
+      runOne = (d) =>
+        createCalendarEventAction({
           eventType: kind,
-          eventDate: date,
+          eventDate: d,
           startTime: startTime || undefined,
           endTime: endTime || undefined,
           title: title.trim(),
@@ -182,10 +215,21 @@ export function NewEventModal({
           visibility,
           studentIds: visibility === "selected" ? studentIds : undefined,
         });
-        onClose();
-      } catch (e: any) {
-        setError(e?.message ?? "登録に失敗しました");
+    }
+
+    startTransition(async () => {
+      let done = 0;
+      for (const d of dates) {
+        try {
+          await runOne(d);
+          done++;
+        } catch (e: any) {
+          // 途中で失敗したら止める。ここまでに登録できた分はそのまま残る。
+          setError(`${done}/${dates.length}日分を登録した後、${d}でエラーになりました: ${e?.message ?? "登録に失敗しました"}`);
+          return;
+        }
       }
+      onClose();
     });
   }
 
@@ -224,14 +268,102 @@ export function NewEventModal({
 
         <div className="space-y-3">
           {kind !== "notice" && (
-            <Field label="日付">
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
-              />
-            </Field>
+            <div className="space-y-2">
+              <span className="text-xs text-[var(--color-ink-soft)]">
+                日付(複数選べます。同じ内容がすべての日に登録されます)
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {dates.map((d) => (
+                  <span
+                    key={d}
+                    className="inline-flex items-center gap-1 rounded-full border border-[var(--color-border)] bg-white px-2 py-0.5 text-xs"
+                  >
+                    {d}
+                    <button
+                      type="button"
+                      onClick={() => removeDate(d)}
+                      aria-label={`${d}を外す`}
+                      className="text-[var(--color-ink-soft)]"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {dates.length === 0 && (
+                  <span className="text-xs text-[var(--color-ink-soft)]">まだ選ばれていません</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={dateInput}
+                  onChange={(e) => setDateInput(e.target.value)}
+                  className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    addDate(dateInput);
+                    setDateInput("");
+                  }}
+                  disabled={!dateInput}
+                  className="rounded-md border border-[var(--color-border)] px-2 py-1 text-xs disabled:opacity-50"
+                >
+                  日付を追加
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-ink-soft)]">
+                <span>期間で追加:</span>
+                <input
+                  type="date"
+                  value={rangeFrom}
+                  onChange={(e) => setRangeFrom(e.target.value)}
+                  className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+                />
+                <span>〜</span>
+                <input
+                  type="date"
+                  value={rangeTo}
+                  onChange={(e) => setRangeTo(e.target.value)}
+                  className="rounded-md border border-[var(--color-border)] px-2 py-1 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={addRange}
+                  disabled={!rangeFrom || !rangeTo}
+                  className="rounded-md border border-[var(--color-border)] px-2 py-1 text-xs disabled:opacity-50"
+                >
+                  期間を追加
+                </button>
+              </div>
+            </div>
+          )}
+
+          {kind === "closure" && (
+            <div className="space-y-1">
+              <span className="text-xs text-[var(--color-ink-soft)]">種類</span>
+              <div className="flex gap-4 text-sm">
+                <label className="flex items-center gap-1">
+                  <input
+                    type="radio"
+                    checked={closureStatus === "closed"}
+                    onChange={() => setClosureStatus("closed")}
+                  />
+                  休講
+                </label>
+                <label className="flex items-center gap-1">
+                  <input
+                    type="radio"
+                    checked={closureStatus === "open"}
+                    onChange={() => setClosureStatus("open")}
+                  />
+                  特別開講
+                </label>
+              </div>
+              <p className="text-xs text-[var(--color-ink-soft)]">
+                日曜・月曜は通常休講です。ここで登録した日は、通常の設定より優先されます。
+              </p>
+            </div>
           )}
 
           {kind === "notice" && (
@@ -375,7 +507,7 @@ export function NewEventModal({
             </Field>
           )}
 
-          {kind !== "school_event" && kind !== "notice" && kind !== "todo" && (
+          {kind !== "school_event" && kind !== "notice" && kind !== "todo" && kind !== "closure" && (
             <Field label="表示する範囲">
               <div className="flex flex-wrap gap-3 text-sm">
                 <label className="flex items-center gap-1">
@@ -415,6 +547,7 @@ export function NewEventModal({
           {kind !== "school_event" &&
             kind !== "notice" &&
             kind !== "todo" &&
+            kind !== "closure" &&
             (visibility === "selected" || (kind === "lesson" && visibility !== "all")) && (
               <Field label="対象の生徒">
                 <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">

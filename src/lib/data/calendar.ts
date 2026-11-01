@@ -163,8 +163,10 @@ export async function buildStudentCalendar(params: {
 }
 
 export type AdminCalendarDayItem =
-  | { type: "school_event"; title: string; schoolName: string; note: string | null }
-  | { type: "announcement"; title: string; timeRange: string | null; note: string | null }
+  | { type: "school_event"; id: string; title: string; schoolName: string; note: string | null }
+  | { type: "announcement"; id: string; title: string; timeRange: string | null; note: string | null }
+  // 臨時の休講/特別開講(calendar_closuresの明示的な行のみ。日・月のデフォルト休講は行が無いので対象外)
+  | { type: "closure"; date: string; closureStatus: "closed" | "open"; note: string | null }
   | { type: "todo"; id: string; content: string; done: boolean }
   | {
       type: "calendar_event";
@@ -211,11 +213,14 @@ export async function buildAdminCalendar(
     const status = resolveDayStatus(date, closures);
     const items: AdminCalendarDayItem[] = [];
 
+    for (const c of closures.filter((c) => c.closure_date === iso)) {
+      items.push({ type: "closure", date: iso, closureStatus: c.status, note: c.note });
+    }
     for (const e of schoolEvents.filter((e) => e.event_date === iso)) {
-      items.push({ type: "school_event", title: e.title, schoolName: e.schoolName, note: e.note });
+      items.push({ type: "school_event", id: e.id, title: e.title, schoolName: e.schoolName, note: e.note });
     }
     for (const a of announcements.filter((a) => a.event_date === iso)) {
-      items.push({ type: "announcement", title: a.title, timeRange: a.time_range, note: a.note });
+      items.push({ type: "announcement", id: a.id, title: a.title, timeRange: a.time_range, note: a.note });
     }
     for (const t of todos.filter((t) => t.todo_date === iso)) {
       items.push({ type: "todo", id: t.id, content: t.content, done: t.done });
