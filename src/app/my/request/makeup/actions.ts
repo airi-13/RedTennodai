@@ -3,6 +3,7 @@
 import { createAnonClient } from "@/lib/supabase-anon";
 import { supabase as adminSupabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
+import { todayJst } from "@/lib/jst";
 
 function parseDate(value: string) {
   const date = new Date(`${value}T00:00:00`);
@@ -48,7 +49,7 @@ export async function registerMakeupAction(
   const sourceDate = parseDate(record.date);
   const destinationDate = parseDate(makeupDate);
   if (!sourceDate || !destinationDate) return { error: "日付が正しくありません" };
-  const today = parseDate(toIso(new Date()))!;
+  const today = parseDate(todayJst())!;
   if (destinationDate < today) {
     return { error: "振替日は今日以降の日付を選択してください" };
   }

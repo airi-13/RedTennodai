@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createAnonClient } from "@/lib/supabase-anon";
 import { MakeupRegisterForm } from "./MakeupRegisterForm";
+import { todayJst, addDaysIso } from "@/lib/jst";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +23,8 @@ export default async function MakeupRegisterPage() {
     .maybeSingle();
   if (!student) return <p>生徒情報が見つかりませんでした。</p>;
 
-  const today = new Date();
-  const start = new Date(today);
-  start.setDate(start.getDate() - 28);
-  const toIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const startDate = toIso(start);
-  const todayIso = toIso(today);
+  const todayIso = todayJst();
+  const startDate = addDaysIso(todayIso, -28);
 
   const [{ data: records }, { data: periods }, { data: subjects }] = await Promise.all([
     supabase
@@ -64,7 +61,7 @@ export default async function MakeupRegisterPage() {
           ) : (
             <div className="space-y-3">
               {candidates.map((record) => {
-                const fourWeeksAfterSource = toIso(new Date(new Date(record.date).getTime() + 28 * 24 * 60 * 60 * 1000));
+                const fourWeeksAfterSource = addDaysIso(record.date, 28);
                 const windowClosed = fourWeeksAfterSource < todayIso;
                 return (
                   <div key={record.id} className="rounded-xl border border-[var(--color-border)] bg-white/50 p-4">

@@ -5,6 +5,7 @@ import { getStudents } from "@/lib/data/students";
 import { listSchools } from "@/lib/data/schools";
 import { listRecentNotices } from "@/lib/data/notices";
 import { DashboardView } from "./DashboardView";
+import { currentYearMonthJst } from "@/lib/jst";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,9 @@ export default async function DashboardPage({
   searchParams: Promise<{ y?: string; m?: string }>;
 }) {
   const params = await searchParams;
-  const now = new Date();
-  const year = params.y ? Number(params.y) : now.getFullYear();
-  const month = params.m ? Number(params.m) : now.getMonth() + 1;
+  const current = currentYearMonthJst();
+  const year = params.y ? Number(params.y) : current.year;
+  const month = params.m ? Number(params.m) : current.month;
 
   let days, periods, subjects, students, schools, notices;
   try {

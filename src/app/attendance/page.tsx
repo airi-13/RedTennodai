@@ -2,15 +2,9 @@ import { getPeriods, getPeriodAvailabilityForDay } from "@/lib/data/periods";
 import { getSubjects } from "@/lib/data/subjects";
 import { getAttendanceSlotsForDate, dayOfWeekFromDateString } from "@/lib/data/attendance";
 import { AttendanceView } from "./AttendanceView";
+import { todayJst } from "@/lib/jst";
 
 export const dynamic = "force-dynamic";
-
-// サーバーのタイムゾーンに依存せず、日本時間での「今日」をYYYY-MM-DDで返す
-function todayInJst(): string {
-  return new Date()
-    .toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) // sv-SEロケールはYYYY-MM-DD形式になる
-    .slice(0, 10);
-}
 
 export default async function AttendancePage({
   searchParams,
@@ -18,7 +12,7 @@ export default async function AttendancePage({
   searchParams: Promise<{ date?: string }>;
 }) {
   const params = await searchParams;
-  const date = params.date ?? todayInJst();
+  const date = params.date ?? todayJst();
   const dayOfWeek = dayOfWeekFromDateString(date);
 
   const [periods, subjects, availability, slots] = await Promise.all([
