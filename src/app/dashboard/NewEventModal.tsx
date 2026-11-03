@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import type { Period, Subject, Student } from "@/lib/types";
 import type { School } from "@/lib/data/schools";
-import type { CalendarEventType, CalendarEventVisibility } from "@/lib/data/calendar-events";
+import type { CalendarEventVisibility } from "@/lib/data/calendar-events";
 import { createCalendarEventAction } from "@/app/admin-calendar/actions";
 import { createSchoolEventAction } from "@/app/admin-calendar/actions";
 import { createNoticeAction, createTodoAction, setClosureAction } from "@/app/admin-calendar/actions";
