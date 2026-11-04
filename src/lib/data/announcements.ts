@@ -39,24 +39,7 @@ export async function listAnnouncementsForMonth(
 
   if (error) throw error
   return data ?? []
-}
-
-export async function createAnnouncement(input: {
-  event_date: string
-  title: string
-  time_range?: string
-  note?: string
-}): Promise<Announcement> {
-  const { data, error } = await supabase
-    .from('schedule_announcements')
-    .insert(input)
-    .select('*')
-    .single()
-  if (error) throw error
-  return data
-}
-
-export async function deleteAnnouncement(id: string): Promise<void> {
+}export async function deleteAnnouncement(id: string): Promise<void> {
   const { error } = await supabase.from('schedule_announcements').delete().eq('id', id)
   if (error) throw error
 }

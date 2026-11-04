@@ -22,14 +22,4 @@ export function isValidMakeupDestinationSlot(targetDate: string, makeupDate: str
   const makeup = jstInstant(makeupDate, makeupPeriodStartTime);
   const latest = jstInstant(addDaysIso(targetDate, 29)) - 1;
   return makeup >= now.getTime() && makeup <= latest;
-}
-
-// 振替日は、元の授業日より後で、28日以内。
-export function isValidMakeupDateRange(targetDate: string, makeupDate: string): boolean {
-  const [y1, m1, d1] = targetDate.split("-").map(Number);
-  const [y2, m2, d2] = makeupDate.split("-").map(Number);
-  const diffDays = (Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000;
-  return diffDays > 0 && diffDays <= 28;
-}
-
-export const MAKEUP_LESSON_NOTICE = "※振替授業のため、このコマの振替はできません";
+}export const MAKEUP_LESSON_NOTICE = "※振替授業のため、このコマの振替はできません";

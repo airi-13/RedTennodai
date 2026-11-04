@@ -48,22 +48,7 @@ export type StudentSchedule = {
   subject_id: number;
 };
 
-export type AttendanceStatus = "present" | "absent" | "late" | "makeup" | "no_show";
-
-export type AttendanceRecord = {
-  id: number;
-  student_id: number;
-  date: string;
-  period_id: number;
-  subject_id: number;
-  status: AttendanceStatus;
-  note: string | null;
-  makeup_date?: string | null;
-  makeup_period_id?: number | null;
-  makeup_attendance_status?: AttendanceStatus | null;
-};
-
-export type AttendanceSlot = {
+export type AttendanceStatus = "present" | "absent" | "late" | "makeup" | "no_show";export type AttendanceSlot = {
   scheduleId: number | null;
   studentId: number;
   studentName: string;

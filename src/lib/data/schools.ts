@@ -40,19 +40,3 @@ export async function findOrCreateSchoolByName(name: string): Promise<School> {
   if (createError) throw createError
   return created
 }
-
-export async function createSchool(name: string): Promise<School> {
-  const { data, error } = await supabase
-    .from('schools')
-    .insert({ name: name.trim() })
-    .select('*')
-    .single()
-
-  if (error) throw error
-  return data
-}
-
-export async function deleteSchool(id: string): Promise<void> {
-  const { error } = await supabase.from('schools').delete().eq('id', id)
-  if (error) throw error
-}

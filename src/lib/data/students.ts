@@ -11,19 +11,7 @@ export async function getStudents(includeInactive = false): Promise<Student[]> {
   const { data, error } = await query;
   if (error) throw error;
   return data;
-}
-
-export async function getStudent(id: number): Promise<Student | null> {
-  const { data, error } = await supabase
-    .from("students")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-export type NewStudent = {
+}export type NewStudent = {
   name: string;
   name_kana?: string | null;
   gender?: string | null;
@@ -33,19 +21,7 @@ export type NewStudent = {
   grade?: number | null;
   enrolled_on?: string | null;
   note?: string | null;
-};
-
-export async function createStudent(input: NewStudent): Promise<Student> {
-  const { data, error } = await supabase
-    .from("students")
-    .insert(input)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-// 生徒の登録と同時にSupabase Authのログインアカウントも発行する。
+};// 生徒の登録と同時にSupabase Authのログインアカウントも発行する。
 // login_idは生徒が入力する短いID、passwordは管理者が決めて生徒に伝える。
 export async function createStudentWithLogin(
   input: NewStudent & { loginId: string; password: string }
