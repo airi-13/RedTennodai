@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { upsertAttendance, deleteAttendanceRecord, updateMakeupDestinationStatus } from "@/lib/data/attendance";
+import { upsertAttendance, updateMakeupDestinationStatus } from "@/lib/data/attendance";
 import { setCalendarEventAttendance } from "@/lib/data/calendar-events";
-import { addSchedule } from "@/lib/data/schedules";
 import type { AttendanceStatus } from "@/lib/types";
 
 export async function setAttendanceStatus(input: {
@@ -53,20 +52,4 @@ export async function setAttendanceStatus(input: {
   });
   revalidatePath("/attendance");
   revalidatePath("/my");
-}
-
-export async function clearAttendanceRecord(id: number) {
-  await deleteAttendanceRecord(id);
-  revalidatePath("/attendance");
-}
-
-export async function addStudentSchedule(input: {
-  studentId: number;
-  dayOfWeek: number;
-  periodId: number;
-  subjectId: number;
-}) {
-  await addSchedule({ student_id: input.studentId, day_of_week: input.dayOfWeek, period_id: input.periodId, subject_id: input.subjectId });
-  revalidatePath("/attendance");
-  revalidatePath("/students");
 }

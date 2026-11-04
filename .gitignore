@@ -10,3 +10,6 @@ next-env.d.ts
 .wrangler
 .dev.vars
 cloudflare-env.d.ts
+
+# 動作検証用の一時ファイル(コミットしない)
+.tmp-verify/

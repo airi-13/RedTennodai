@@ -2,36 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  createStudent,
   createStudentWithLogin,
   updateStudent,
   updateStudentStatus,
   updateStudentPassword,
   deleteStudent,
-  type NewStudent,
-  type StudentUpdate,
 } from "@/lib/data/students";
-import { addSchedule, deleteSchedule, deleteSchedulesForStudent } from "@/lib/data/schedules";
+import { addSchedule, deleteSchedulesForStudent } from "@/lib/data/schedules";
 import { supabase } from "@/lib/supabase";
 import { subjectCandidates, parseSchedule, periodNameVariants, needsEightyMinutes } from "@/lib/schedule-text-parser";
 
-const DAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
-
-export async function createStudentAction(input: NewStudent) {
-  const student = await createStudent(input);
-  revalidatePath("/students");
-  return student;
-}
-
-export async function createStudentWithLoginAction(
-  input: NewStudent & { loginId: string; password: string }
-) {
-  const student = await createStudentWithLogin(input);
-  revalidatePath("/students");
-  return student;
-}
-
-// 学年欄(「小6」「中2」「高1」等)を区分+学年に分解する。空欄なら両方nullを返す。
+const DAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];// 学年欄(「小6」「中2」「高1」等)を区分+学年に分解する。空欄なら両方nullを返す。
 // 欄に何か入っているのに形式が違う場合だけエラーにする(未入力は許可する)。
 function parseGradeText(gradeText: string | null | undefined): { schoolLevel: string | null; grade: number | null } {
   const text = gradeText?.trim() ?? "";
@@ -280,17 +261,7 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
   revalidatePath("/attendance");
   revalidatePath("/my");
   return results;
-}
-
-export async function updateStudentAction(id: number, input: StudentUpdate) {
-  const student = await updateStudent(id, input);
-  revalidatePath("/students");
-  revalidatePath("/attendance");
-  revalidatePath("/my");
-  return student;
-}
-
-export async function setStudentActiveAction(id: number, active: boolean) {
+}export async function setStudentActiveAction(id: number, active: boolean) {
   await updateStudentStatus(id, active ? "active" : "inactive");
   revalidatePath("/students");
   revalidatePath("/attendance");
@@ -301,26 +272,4 @@ export async function deleteStudentAction(id: number) {
   revalidatePath("/students");
   revalidatePath("/attendance");
   revalidatePath("/my");
-}
-
-export async function addScheduleAction(input: {
-  studentId: number;
-  dayOfWeek: number;
-  periodId: number;
-  subjectId: number;
-}) {
-  await addSchedule({
-    student_id: input.studentId,
-    day_of_week: input.dayOfWeek,
-    period_id: input.periodId,
-    subject_id: input.subjectId,
-  });
-  revalidatePath("/students");
-  revalidatePath("/attendance");
-}
-
-export async function removeScheduleAction(id: number) {
-  await deleteSchedule(id);
-  revalidatePath("/students");
-  revalidatePath("/attendance");
 }
