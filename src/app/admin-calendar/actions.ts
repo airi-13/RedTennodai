@@ -12,6 +12,7 @@ import {
   type CalendarEventVisibility,
 } from "@/lib/data/calendar-events";
 import { setPeriodAvailability } from "@/lib/data/periods";
+import { requireAdmin } from "@/lib/admin-auth";
 
 function refresh() {
   revalidatePath("/admin-calendar");
@@ -32,6 +33,7 @@ export async function createCalendarEventAction(input: {
   visibility: CalendarEventVisibility;
   studentIds?: number[];
 }) {
+  await requireAdmin();
   if (input.eventType === "lesson" && (!input.periodId || !input.subjectId)) {
     throw new Error("単発授業にはコマと科目の指定が必要です。");
   }
@@ -43,11 +45,13 @@ export async function createCalendarEventAction(input: {
 }
 
 export async function createNoticeAction(input: { title: string; body?: string }) {
+  await requireAdmin();
   await createNotice(input);
   refresh();
 }
 
 export async function setClosureAction(date: string, status: "closed" | "open", note?: string) {
+  await requireAdmin();
   await setClosure(date, status, note);
   refresh();
 }
@@ -58,6 +62,7 @@ export async function createSchoolEventAction(input: {
   title: string;
   note?: string;
 }) {
+  await requireAdmin();
   const school = await findOrCreateSchoolByName(input.schoolName);
   await createSchoolEvent({
     school_id: school.id,
@@ -69,10 +74,12 @@ export async function createSchoolEventAction(input: {
 }
 
 export async function createTodoAction(input: { todo_date: string; content: string }) {
+  await requireAdmin();
   await createTodo(input);
   refresh();
 }
 export async function toggleTodoAction(id: string, done: boolean) {
+  await requireAdmin();
   await toggleTodoDone(id, done);
   refresh();
 }
@@ -84,6 +91,7 @@ export async function setPeriodAvailabilityAction(
   isOpen: boolean,
   capacity: number | null
 ) {
+  await requireAdmin();
   await setPeriodAvailability(dayOfWeek, periodId, isOpen, capacity);
   refresh();
 }

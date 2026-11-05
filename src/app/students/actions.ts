@@ -11,6 +11,7 @@ import {
 import { addSchedule, deleteSchedulesForStudent } from "@/lib/data/schedules";
 import { supabase } from "@/lib/supabase";
 import { subjectCandidates, parseSchedule, periodNameVariants, needsEightyMinutes } from "@/lib/schedule-text-parser";
+import { requireAdmin } from "@/lib/admin-auth";
 
 const DAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -130,6 +131,7 @@ class FieldError extends Error {
 // 生徒IDが既存のものと一致すれば、その生徒の更新として扱う(Passも含めて上書きでよく、
 // 現在と同じ値でもエラーにしない)。一致しなければ新規作成(Passが必須)。
 export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRowResult[]> {
+  await requireAdmin();
   const { data: subjects, error: subjectsError } = await supabase
     .from("subjects")
     .select("id,name,code")
@@ -266,12 +268,14 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
 }
 
 export async function setStudentActiveAction(id: number, active: boolean) {
+  await requireAdmin();
   await updateStudentStatus(id, active ? "active" : "inactive");
   revalidatePath("/students");
   revalidatePath("/attendance");
 }
 
 export async function deleteStudentAction(id: number) {
+  await requireAdmin();
   await deleteStudent(id);
   revalidatePath("/students");
   revalidatePath("/attendance");

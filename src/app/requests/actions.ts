@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { approveRequest, setRequestStatus, cancelApprovedRequest } from "@/lib/data/requests";
 import { setStudentRequestStatus } from "@/lib/data/student-requests";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function approveRequestAction(id: number): Promise<{ reflected: boolean }> {
+  await requireAdmin();
   const result = await approveRequest(id);
   revalidatePath("/requests");
   revalidatePath("/attendance");
@@ -13,11 +15,13 @@ export async function approveRequestAction(id: number): Promise<{ reflected: boo
 }
 
 export async function rejectRequestAction(id: number) {
+  await requireAdmin();
   await setRequestStatus(id, "rejected");
   revalidatePath("/requests");
 }
 
 export async function cancelApprovedRequestAction(id: number) {
+  await requireAdmin();
   await cancelApprovedRequest(id);
   revalidatePath("/requests");
   revalidatePath("/attendance");
@@ -25,11 +29,13 @@ export async function cancelApprovedRequestAction(id: number) {
 }
 
 export async function approveStudentRequestAction(id: number) {
+  await requireAdmin();
   await setStudentRequestStatus(id, "approved");
   revalidatePath("/requests");
 }
 
 export async function rejectStudentRequestAction(id: number) {
+  await requireAdmin();
   await setStudentRequestStatus(id, "rejected");
   revalidatePath("/requests");
 }

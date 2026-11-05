@@ -13,6 +13,14 @@ export async function isAdminAuthed(): Promise<boolean> {
   return token === (await sha256Hex(process.env.ADMIN_PASSWORD));
 }
 
+// 管理者の操作(Server Action)の先頭で呼ぶ。画面の入口(middleware)での認証に加えて、
+// サーバー側でも管理者本人かを確認する(Server Actionは画面を経由せず直接呼ばれる可能性があるため)。
+export async function requireAdmin(): Promise<void> {
+  if (!(await isAdminAuthed())) {
+    throw new Error("管理者としてログインし直してください。");
+  }
+}
+
 export async function setAdminSession() {
   const store = await cookies();
   store.set(ADMIN_COOKIE_NAME, await sha256Hex(process.env.ADMIN_PASSWORD ?? ""), {

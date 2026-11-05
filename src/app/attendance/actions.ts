@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { upsertAttendance, updateMakeupDestinationStatus } from "@/lib/data/attendance";
 import { setCalendarEventAttendance } from "@/lib/data/calendar-events";
 import type { AttendanceStatus } from "@/lib/types";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function setAttendanceStatus(input: {
   studentId: number;
@@ -17,6 +18,7 @@ export async function setAttendanceStatus(input: {
   attendanceRecordId?: number | null;
   calendarEventId?: number | null;
 }) {
+  await requireAdmin();
   if (input.calendarEventId) {
     if (input.status === "makeup") {
       throw new Error("単発授業では振替は選べません。");
