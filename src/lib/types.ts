@@ -48,7 +48,9 @@ export type StudentSchedule = {
   subject_id: number;
 };
 
-export type AttendanceStatus = "present" | "absent" | "late" | "makeup" | "no_show";export type AttendanceSlot = {
+export type AttendanceStatus = "present" | "absent" | "late" | "makeup" | "no_show";
+
+export type AttendanceSlot = {
   scheduleId: number | null;
   studentId: number;
   studentName: string;

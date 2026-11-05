@@ -137,7 +137,9 @@ export async function updateMakeupDestinationStatus(recordId: number, status: At
     .not("makeup_date", "is", null)
     .not("makeup_period_id", "is", null);
   if (error) throw error;
-}export async function getAttendanceRecordsForStudentMonth(studentId: number, year: number, month: number) {
+}
+
+export async function getAttendanceRecordsForStudentMonth(studentId: number, year: number, month: number) {
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const end = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;

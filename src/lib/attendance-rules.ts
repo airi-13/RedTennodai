@@ -22,4 +22,6 @@ export function isValidMakeupDestinationSlot(targetDate: string, makeupDate: str
   const makeup = jstInstant(makeupDate, makeupPeriodStartTime);
   const latest = jstInstant(addDaysIso(targetDate, 29)) - 1;
   return makeup >= now.getTime() && makeup <= latest;
-}export const MAKEUP_LESSON_NOTICE = "※振替授業のため、このコマの振替はできません";
+}
+
+export const MAKEUP_LESSON_NOTICE = "※振替授業のため、このコマの振替はできません";

@@ -12,7 +12,9 @@ export async function getSchedulesForStudent(
     .order("period_id");
   if (error) throw error;
   return data;
-}export async function getAllSchedules(): Promise<StudentSchedule[]> {
+}
+
+export async function getAllSchedules(): Promise<StudentSchedule[]> {
   const { data, error } = await supabase
     .from("student_schedules")
     .select("*")
@@ -35,7 +37,9 @@ export async function addSchedule(input: {
     .single();
   if (error) throw error;
   return data;
-}// 表形式の一括編集で「授業科目」「授業コマ」欄が入力された場合、
+}
+
+// 表形式の一括編集で「授業科目」「授業コマ」欄が入力された場合、
 // 既存のスケジュールを全て置き換えるために使う。
 export async function deleteSchedulesForStudent(studentId: number) {
   const { error } = await supabase.from("student_schedules").delete().eq("student_id", studentId);

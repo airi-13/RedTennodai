@@ -39,7 +39,9 @@ export async function listAnnouncementsForMonth(
 
   if (error) throw error
   return data ?? []
-}export async function deleteAnnouncement(id: string): Promise<void> {
+}
+
+export async function deleteAnnouncement(id: string): Promise<void> {
   const { error } = await supabase.from('schedule_announcements').delete().eq('id', id)
   if (error) throw error
 }

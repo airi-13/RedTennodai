@@ -12,7 +12,9 @@ import { addSchedule, deleteSchedulesForStudent } from "@/lib/data/schedules";
 import { supabase } from "@/lib/supabase";
 import { subjectCandidates, parseSchedule, periodNameVariants, needsEightyMinutes } from "@/lib/schedule-text-parser";
 
-const DAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];// 学年欄(「小6」「中2」「高1」等)を区分+学年に分解する。空欄なら両方nullを返す。
+const DAY_LABEL = ["日", "月", "火", "水", "木", "金", "土"];
+
+// 学年欄(「小6」「中2」「高1」等)を区分+学年に分解する。空欄なら両方nullを返す。
 // 欄に何か入っているのに形式が違う場合だけエラーにする(未入力は許可する)。
 function parseGradeText(gradeText: string | null | undefined): { schoolLevel: string | null; grade: number | null } {
   const text = gradeText?.trim() ?? "";
@@ -261,7 +263,9 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
   revalidatePath("/attendance");
   revalidatePath("/my");
   return results;
-}export async function setStudentActiveAction(id: number, active: boolean) {
+}
+
+export async function setStudentActiveAction(id: number, active: boolean) {
   await updateStudentStatus(id, active ? "active" : "inactive");
   revalidatePath("/students");
   revalidatePath("/attendance");
