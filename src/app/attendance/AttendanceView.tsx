@@ -230,6 +230,9 @@ function StudentRow({
           makeupPeriodId:
             newStatus === "makeup" && newMakeupPeriodId !== "" ? newMakeupPeriodId : null,
           calendarEventId: slot.calendarEventId ?? null,
+          // 振替先の行の出欠は、振替先に新しい記録を作らず、元の振替記録に保存する
+          isTransferAddition,
+          attendanceRecordId: slot.attendanceRecordId,
         });
       } catch (e: any) {
         setErrorMsg(e?.message ?? "保存に失敗しました");
@@ -268,8 +271,10 @@ function StudentRow({
           onChange={(e) => {
             const next = Number(e.target.value);
             setSubjectId(next);
-            if (status) apply(status, next, makeupDate, makeupPeriodId);
+            // 振替先の行の科目は元の授業で決まっているため、ここでは変更・保存しない
+            if (status && !isTransferAddition) apply(status, next, makeupDate, makeupPeriodId);
           }}
+          disabled={isTransferAddition}
           className="rounded-md border border-[var(--color-border)] bg-transparent px-2 py-1 text-sm"
         >
           {subjects.map((s) => (

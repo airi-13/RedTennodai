@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import type { AttendanceSlot, AttendanceStatus } from "@/lib/types";
 import { listLessonEventsForDate } from "@/lib/data/calendar-events";
+import { activeOnOrFilter } from "@/lib/schedule-effective";
+import { mergeDuplicateTransferSlots } from "@/lib/attendance-slots";
 
 export function dayOfWeekFromDateString(date: string): number {
   const [y, m, d] = date.split("-").map(Number);
@@ -21,7 +23,10 @@ export async function getAttendanceSlotsForDate(date: string): Promise<Attendanc
       .from("student_schedules")
       .select("id, student_id, period_id, subject_id, students!inner(name, status)")
       .eq("day_of_week", dayOfWeek)
-      .eq("students.status", "active"),
+      .eq("students.status", "active")
+      // その日付の時点で有効な定期スケジュールだけを使う(変更前の日は変更前のまま表示される)
+      .lte("effective_from", date)
+      .or(activeOnOrFilter(date)),
     supabase.from("attendance_records").select("*").eq("date", date),
     supabase.from("attendance_records").select("*").eq("makeup_date", date),
   ]);
@@ -111,7 +116,7 @@ export async function getAttendanceSlotsForDate(date: string): Promise<Attendanc
     }
   }
 
-  return slots;
+  return mergeDuplicateTransferSlots(slots);
 }
 
 export async function upsertAttendance(input: {

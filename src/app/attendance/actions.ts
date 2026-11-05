@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { upsertAttendance, deleteAttendanceRecord, updateMakeupDestinationStatus } from "@/lib/data/attendance";
 import { setCalendarEventAttendance } from "@/lib/data/calendar-events";
+import { findSlotConflict } from "@/lib/data/slot-conflicts";
 import { addSchedule } from "@/lib/data/schedules";
 import type { AttendanceStatus } from "@/lib/types";
 
@@ -30,8 +31,10 @@ export async function setAttendanceStatus(input: {
 
   if (input.isTransferAddition) {
     if (!input.attendanceRecordId) throw new Error("振替授業の元記録が見つかりません。");
-    if (input.status !== "absent") throw new Error("振替授業では欠席のみ登録できます。");
-    await updateMakeupDestinationStatus(input.attendanceRecordId, "absent");
+    if (input.status === "makeup") throw new Error("振替授業をさらに振替することはできません。");
+    // 振替先の出欠は、元の記録(振替元)の makeup_attendance_status に保存する。
+    // (振替先の日付・コマに別の出欠記録を新しく作らない)
+    await updateMakeupDestinationStatus(input.attendanceRecordId, input.status);
     revalidatePath("/attendance");
     revalidatePath("/my");
     return;
@@ -39,6 +42,13 @@ export async function setAttendanceStatus(input: {
 
   if (input.status === "makeup" && (!input.makeupDate || !input.makeupPeriodId)) {
     throw new Error("振替日と振替コマを指定してから振替を登録してください。");
+  }
+  if (input.status === "makeup" && input.makeupDate && input.makeupPeriodId) {
+    const conflict = await findSlotConflict(input.studentId, input.makeupDate, input.makeupPeriodId, {
+      originDate: input.date,
+      originPeriodId: input.periodId,
+    });
+    if (conflict) throw new Error(conflict);
   }
 
   await upsertAttendance({

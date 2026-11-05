@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { activeOnOrFilter } from "@/lib/schedule-effective";
 import { upsertAttendance } from "@/lib/data/attendance";
 import { dayOfWeekFromDateString } from "@/lib/data/attendance";
 import type { AttendanceRequest, AttendanceRequestWithStudent, RequestStatus } from "@/lib/types";
@@ -83,6 +84,8 @@ export async function approveRequest(id: number): Promise<{ reflected: boolean }
       .eq("student_id", request.student_id)
       .eq("day_of_week", dayOfWeek)
       .eq("period_id", request.target_period_id)
+      .lte("effective_from", request.target_date)
+      .or(activeOnOrFilter(request.target_date))
       .maybeSingle();
 
     if (schedule) {

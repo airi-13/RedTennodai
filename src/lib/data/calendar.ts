@@ -1,5 +1,6 @@
 // 生徒本人・管理者トップページ用のカレンダーデータを合成する。
 import { getSchedulesForStudent } from "@/lib/data/schedules";
+import { isScheduleActiveOn } from "@/lib/schedule-effective";
 import { getPeriods } from "@/lib/data/periods";
 import { getSubjects } from "@/lib/data/subjects";
 import {
@@ -97,7 +98,7 @@ export async function buildStudentCalendar(params: {
     const weekday = date.getDay();
     const items: CalendarDayItem[] = [];
 
-    for (const s of schedules.filter((ws) => ws.day_of_week === weekday)) {
+    for (const s of schedules.filter((ws) => ws.day_of_week === weekday && isScheduleActiveOn(ws, iso))) {
       const record = recordByDateAndPeriod.get(`${iso}:${s.period_id}`);
       items.push({
         type: "lesson",

@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { Period, PeriodAvailability } from "@/lib/types";
+import { jstTodayString, activeOnOrFilter } from "@/lib/schedule-effective";
 
 export async function getPeriods(): Promise<Period[]> {
   const { data, error } = await supabase
@@ -46,10 +47,13 @@ export async function setPeriodAvailability(
 // 曜日×コマごとの在籍中の生徒数(定期スケジュールの件数)。
 // 開講枠の上限に対して、今どれくらい埋まっているかを表示するために使う。
 export async function getEnrollmentCounts(): Promise<Map<string, number>> {
+  const today = jstTodayString();
   const { data, error } = await supabase
     .from("student_schedules")
     .select("day_of_week, period_id, students!inner(status)")
-    .eq("students.status", "active");
+    .eq("students.status", "active")
+    .lte("effective_from", today)
+    .or(activeOnOrFilter(today));
   if (error) throw error;
   const map = new Map<string, number>();
   for (const row of (data ?? []) as any[]) {
