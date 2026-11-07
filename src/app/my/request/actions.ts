@@ -6,6 +6,8 @@ import { createAnonClient } from "@/lib/supabase-anon";
 import { supabase as adminSupabase } from "@/lib/supabase";
 import { isBeforeRegistrationDeadline, isValidMakeupSourceSlot, isValidMakeupDestinationSlot } from "@/lib/attendance-rules";
 import { dayOfWeekFromDateString } from "@/lib/data/attendance";
+import { activeOnOrFilter } from "@/lib/schedule-effective";
+import { findSlotConflict } from "@/lib/data/slot-conflicts";
 
 export async function submitRequestAction(
   _prevState: { error?: string } | undefined,
@@ -86,6 +88,11 @@ export async function submitRequestAction(
     if (!isValidMakeupDestinationSlot(targetDate, makeupDate, makeupPeriod?.start_time ?? null, now)) {
       return { error: "振替授業は現在時刻以降、元授業日の4週間後23:59までのコマを選択してください。" };
     }
+    const slotConflict = await findSlotConflict(student.id, makeupDate, makeupPeriodId, {
+      originDate: targetDate,
+      originPeriodId: targetPeriodId,
+    });
+    if (slotConflict) return { error: slotConflict };
   }
 
   const dayOfWeek = dayOfWeekFromDateString(targetDate);
@@ -95,6 +102,8 @@ export async function submitRequestAction(
     .eq("student_id", student.id)
     .eq("day_of_week", dayOfWeek)
     .eq("period_id", targetPeriodId)
+    .lte("effective_from", targetDate)
+    .or(activeOnOrFilter(targetDate))
     .maybeSingle();
   if (!schedule) return { error: "この日・コマの授業情報が見つかりませんでした。" };
 
@@ -278,6 +287,8 @@ export async function changeMakeupAction(
   if (!isValidMakeupDestinationSlot(targetDate, makeupDate, makeupPeriod?.start_time ?? null, now)) {
     return { error: "振替授業は現在時刻以降、元授業日の4週間後23:59までのコマを選択してください。" };
   }
+  const slotConflict = await findSlotConflict(student.id, makeupDate, makeupPeriodId, { recordId: record.id });
+  if (slotConflict) return { error: slotConflict };
 
   const { error } = await adminSupabase
     .from("attendance_records")

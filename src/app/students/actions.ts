@@ -8,7 +8,7 @@ import {
   updateStudentPassword,
   deleteStudent,
 } from "@/lib/data/students";
-import { addSchedule, deleteSchedulesForStudent } from "@/lib/data/schedules";
+import { addSchedule, replaceStudentSchedule } from "@/lib/data/schedules";
 import { supabase } from "@/lib/supabase";
 import { subjectCandidates, parseSchedule, periodNameVariants, needsEightyMinutes } from "@/lib/schedule-text-parser";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -240,10 +240,11 @@ export async function saveStudentsTableAction(rows: TableRow[]): Promise<TableRo
               periods,
               needsEightyMinutes(effectiveSchoolLevel, effectiveGrade)
             );
-            await deleteSchedulesForStudent(existing.id);
-            for (const s of scheduleRows) {
-              await addSchedule({ student_id: s.student_id, day_of_week: s.day_of_week, period_id: s.period_id, subject_id: s.subject_id });
-            }
+            // 変更は翌日以降のみ反映する(今日以前の予定は変えない)。変わらない行はそのまま残る。
+            await replaceStudentSchedule(
+              existing.id,
+              scheduleRows.map((r) => ({ day_of_week: r.day_of_week, period_id: r.period_id, subject_id: r.subject_id }))
+            );
           } catch (e: any) {
             throw new FieldError(e.message, "schedule");
           }

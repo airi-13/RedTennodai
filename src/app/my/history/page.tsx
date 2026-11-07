@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { jstTodayString, activeOnOrFilter } from "@/lib/schedule-effective";
 import Link from "next/link";
 import { createAnonClient } from "@/lib/supabase-anon";
 import { studentLogoutAction } from "@/app/login/actions";
@@ -17,7 +18,7 @@ export default async function MyPage() {
   if (!student) return <div className="space-y-3"><p>生徒情報が見つかりませんでした。教室までお問い合わせください。</p><form action={studentLogoutAction}><button className="text-sm underline">ログアウト</button></form></div>;
 
   const [{ data: schedules }, { data: records }, { data: periods }] = await Promise.all([
-    supabase.from("student_schedules").select("day_of_week, periods(name, sort_order), subjects(name)").eq("student_id", student.id).order("day_of_week"),
+    supabase.from("student_schedules").select("day_of_week, periods(name, sort_order), subjects(name)").eq("student_id", student.id).lte("effective_from", jstTodayString()).or(activeOnOrFilter(jstTodayString())).order("day_of_week"),
     supabase.from("attendance_records").select("date, period_id, status, makeup_date, makeup_period_id, makeup_attendance_status, periods(name), subjects(name)").eq("student_id", student.id).order("date", { ascending: false }).limit(50),
     supabase.from("periods").select("id, name"),
   ]);

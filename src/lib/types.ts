@@ -46,6 +46,9 @@ export type StudentSchedule = {
   day_of_week: number;
   period_id: number;
   subject_id: number;
+  // この行が有効な期間。effective_untilがnullなら現在も有効(終了日なし)。
+  effective_from: string;
+  effective_until: string | null;
 };
 
 export type AttendanceStatus = "present" | "absent" | "late" | "makeup" | "no_show";

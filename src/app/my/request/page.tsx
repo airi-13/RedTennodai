@@ -27,7 +27,7 @@ export default async function MyRequestPage({
   const [textbooks, periodsResult, schedulesResult] = await Promise.all([
     listTextbooks(),
     getPeriods(),
-    supabase.from("student_schedules").select("id, day_of_week, period_id, subject_id").eq("student_id", student.id).order("day_of_week").order("period_id"),
+    supabase.from("student_schedules").select("id, day_of_week, period_id, subject_id").eq("student_id", student.id).is("effective_until", null).order("day_of_week").order("period_id"),
   ]);
 
   return (
