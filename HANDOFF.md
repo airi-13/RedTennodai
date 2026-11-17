@@ -2,7 +2,7 @@
 
 最終更新日: 2026-08-23
 
-このファイルをそのままClaudeに貼り付ければ、この開発を引き継いで進められます。DBスキーマの詳細は `docs/database-schema.md` と `docs/schema.sql` を参照してください(この引き継ぎファイル自体には重複記載しません)。
+このファイルをそのままClaudeに貼り付ければ、この開発を引き継いで進められます。DBスキーマの詳細は `docs/database-schema.md`(設計の説明)と `docs/schema.sql` + `supabase/migrations/`(DDL)を参照してください(この引き継ぎファイル自体には重複記載しません)。
 
 ## プロジェクト概要
 
@@ -70,6 +70,6 @@ RED教室(個人経営の学習塾、生徒数は小学生〜高校生で最大5
 
 - ドキュメントはMarkdownで作成し、説明はチャット側に書いてドキューメント本体は簡潔に保つ
 - ファイルは役割ごとに分割し、1ファイルを長くしすぎない
-- DBスキーマを変更したら`docs/schema.sql`と`docs/database-schema.md`も必ず同期させる(Supabaseへ`apply_migration`で反映 → 両ファイルを更新、の順)
+- DBスキーマを変更したら、Supabaseへ反映する(`apply_migration`)のと対で`supabase/migrations/`に同じ内容の新しいSQLファイルを追加し、`docs/database-schema.md`の該当記述も更新する(`docs/schema.sql`は初期スナップショットなので変更しない。2026-11-08に、`schema.sql`+migrationsから作り直したスキーマが本番と全項目一致することを確認済み)
 - コード変更後は`npm run build`でローカルビルドを確認してからpush(Renderは`npm install`を自動実行しないため、`package.json`の`prebuild`スクリプトで明示的に`npm install`している)
 - 「まず動く形を作ってから細かい調整改善をしていく」という進め方を好む
